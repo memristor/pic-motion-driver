@@ -1,0 +1,7 @@
+
+todo:
+	+ popraviti error kodove
+	+ popraviti lokalnosti promenjivih (globalne u lokalne sto je vise moguce, 
+		cena lokalne promenjive je veoma zanemarljiva da bi kvario kod)
+	+ izbaciti magicne konstante
+	+ ubaciti moj kod za kretanje
