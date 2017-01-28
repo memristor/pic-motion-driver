@@ -40,7 +40,7 @@ static volatile long keep_rotation = 0, keep_speed = 0, keep_count = 0;
 
 static const long K1_p = K1;
 static long prevPositionL,prevPositionR;
-static signed long current_speed, angular_speed;
+static volatile signed long current_speed, angular_speed;
 
 static int debug = 0;
 
@@ -1156,8 +1156,8 @@ void move_to(long x, long y, char direction) {
 			if(speed < vmax) {
 				speed = maxf( min_speed, speed+accel );
 			}
-		} else if(dist > 100.0f && dist < 150.0f) {
-			// speed = maxf( min_speed, speed-accel );
+		} else if(dist > 1.0f && dist <= 200.0f) {
+			speed = maxf( min_speed, speed-accel );
 		} else if(dist < 1.0f) {
 			d_ref = L;
 			return;

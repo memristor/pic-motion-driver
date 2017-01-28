@@ -2,11 +2,11 @@ TOOLCHAIN_PATH := /opt/microchip/xc16/v1.30/bin/
 TOOLCHAIN := $(TOOLCHAIN_PATH)xc16-
 
 src := \
-	main.c \
-	uart.c \
-	init.c \
-	pwm.c \
-	regulacija.c \
+	src/main.c \
+	src/uart.c \
+	src/init.c \
+	src/pwm.c \
+	src/regulacija.c \
 
 
 obj := $(patsubst %.c,%.o,$(src))
