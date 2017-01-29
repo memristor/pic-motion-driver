@@ -5,10 +5,10 @@
 #define PI	3.1415926535897932384626433832795
 
 // Precnik odometrijskog tocka (u milimetrima)
-#define R_tocka	81.4
+#define R_wheel	81.4
 
 // Rastojanje izmedju odometrijskih tockova (u milimetrima)
-#define rastojanje_tockova 286.5
+#define wheel_distance 286.5
 
 /*
 	Broj inkremenata jednog tocka da se obrne pun krug poluprecnika rastojanja izmedju tockova,
@@ -25,7 +25,7 @@
 	
 	korisna je za racunanje orijentacije na osnovu razlike inkrementa 2 tocka
 */
-#define K1	(long)(4*2048.0f * 2 * rastojanje_tockova / R_tocka)
+#define K1	(long)(4*2048.0f * 2 * wheel_distance / R_wheel)
 
 /*
 	Broj inkremenata po 1 milimetru
@@ -34,7 +34,7 @@
 	8192 [inc] = (r [mm] * 2*pi[rad])*const
 	const = 8192 [inc] / (2*r*pi) [mm] => broj inkrementa po milimetru
 */
-#define K2	(float)(4*2048.0f / (R_tocka * PI))
+#define K2	(float)(4*2048.0f / (R_wheel * PI))
 
 #define VMAX K2
 
@@ -53,6 +53,7 @@
 
 
 #define MILIMETER_TO_DOUBLED_INC(x) ((long long)(x)*K2*2)
+#define MILIMETER_TO_INC(x) ((long long)(x)*K2)
 #define DEG_TO_INC_ANGLE(x) ((x)*K1/360)
 #define INC_TO_DEG_ANGLE(x) ((x)*360/K1)
 #define RAD_TO_INC_ANGLE(x) ((x)/(2.0*PI)*K1)
@@ -61,9 +62,13 @@
 
 #define DBG_NO_DISTANCE_REGULATOR 2
 #define DBG_NO_ROTATION_REGULATOR 4
+
+
 /*
-	PROVERI ENKODER: Part no:MA5D1N4FBK1SA0; Type no.: sca24-5000-N-04-09-64-01-S-00
+	Encoder used: Part no:MA5D1N4FBK1SA0; Type no.: sca24-5000-N-04-09-64-01-S-00
 */
+
+#define SYNC_BYTE 64
 
 
 enum States
@@ -79,32 +84,25 @@ void debug_level(int level);
 
 void resetDriver(void);
 
-// zadavanje pozicije
 void setPosition(int X, int Y, int orientation);
 
 void sendStatusAndPosition(void);
 
-// zadavanje brzine i ubrzanja
 void setSpeedAccel(float v);
 
-// funkcija za stizanje u tacku (Xd, Yd)
-void gotoXY(int Xd, int Yd, unsigned char krajnja_brzina, char smer);
+void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction);
 
-// funkcija za kretanje pravo s trapezoidnim profilom brzine
-void kretanje_pravo(int duzina, unsigned char krajnja_brzina);
+void forward(int duzina, unsigned char end_speed);
 
-// funkcija za dovodjenje robota u zeljenu apsolutnu orjentaciju
-void rotiraj_robota_apsolutni_ugao(int ugao);
+void rotate_absolute_angle(int ugao);
 
-// funkcija za okretanje oko svoje ose s trapezoidnim profilom brzine
-char okret(int ugao);
+char turn(int ugao);
 
 void testing();
 
 void start_command();
 
-// funkcija za kretanje po kruznoj putanji
-void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer);
+void luk(long Xc, long Yc, int Fi, char direction_ugla, char direction);
 
 void move_to(long x, long y, char direction);
 

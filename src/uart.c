@@ -2,12 +2,11 @@
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
 
-//BAFER ZA SERIJSKU KOMUNIKACIJU
-static volatile unsigned char rx_buf[RX_BUF_LEN];
-static volatile unsigned char rx_index1 = 0;
-static volatile unsigned char rx_index2 = 0;
-static volatile unsigned char rxData;
-static volatile unsigned char rxCounter = 0;
+static volatile uint8_t rx_buf[RX_BUF_LEN];
+static volatile uint8_t rx_index1 = 0;
+static volatile uint8_t rx_index2 = 0;
+static volatile uint8_t rxData;
+static volatile uint8_t rxCounter = 0;
 
 void UART_Init(long baud)
 {
@@ -147,7 +146,7 @@ unsigned int getsUART1(unsigned int length,unsigned int *buffer,
  * Return Value      : None
  *********************************************************************/
 
-void OpenUART1(unsigned int config1,unsigned int config2, unsigned int ubrg)
+void OpenUART1(unsigned int config1, unsigned int config2, unsigned int ubrg)
 {
 	U1BRG  = ubrg;     /* baud rate */
 	U1MODE = config1;  /* operation settings */
@@ -261,6 +260,8 @@ void dbg(unsigned char code, unsigned int val) {
 	putint16(val);
 }
 
+
+// send long as decimal value (useless)
 void SendLong(long num)
 {
 	unsigned char c1, c10, c100, c1000, c10000, c100000;
@@ -373,3 +374,149 @@ unsigned char UART_CheckRX(void)
 	return rxCounter;
 }
 // end
+
+// ------------- UART packet protocol ------------
+
+/*
+	SCTLxxxxxxxx
+
+	S - 1 Byte sync (0x3c)
+	C - 1 Byte checksum ( upper nibble - header checksum, lower nibble payload checksum )
+	T - 1 Byte type
+	L - 1 Byte payload length
+	x - L Bytes data
+*/
+
+
+#define MAX_PKT_SIZE 32
+#define PACKET_SYNC 0x3c
+#define PACKET_HEADER 4
+
+/*
+	@param
+		length - pointer to byte where length will be written if packet is found
+	@return
+		0 - no packet found
+		other - pointer to data of length set by this function (in this data)
+*/
+
+static uint8_t rx_get() {
+	if(++rx_index2 >= RX_BUF_LEN) {
+		rx_index2 = 0;
+	}
+	return rx_buf[rx_index2];
+}
+
+static uint8_t rx_pkt_buf[MAX_PKT_SIZE];
+static uint8_t rx_pkt_type;
+static uint8_t rx_pkt_len;
+static uint8_t rx_pkt_checksum;
+static uint8_t rx_pkt_wait_for_data = 0;
+static uint8_t rx_pkt_read_cursor;
+
+uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
+	uint8_t read = 0;
+	uint8_t pass = 0;
+	// printf("rxCounter: %d\n", rxCounter);
+	if(rx_pkt_wait_for_data == 0) {
+		while(rxCounter - read >= PACKET_HEADER) {
+			
+			// if found packet_sync
+			if(rx_get() == PACKET_SYNC ) {
+				rx_pkt_checksum = rx_get();
+				rx_pkt_type = rx_get();
+				rx_pkt_len = rx_get();
+				read += 3;
+
+				// check header checksum
+				if( (rx_pkt_checksum >> 4) == ((rx_pkt_type+rx_pkt_len) & 0xf) ) {
+					rx_pkt_wait_for_data = 1;
+					read++;
+					break;
+				}
+			}
+			read++;
+		}
+	}
+	
+	if(rx_pkt_wait_for_data == 1 && rxCounter >= rx_pkt_len) {
+		// check content checksum
+		uint8_t c = 0;
+					
+		// checksum calculate for all data
+		uint8_t i;
+		for(i=0; i < rx_pkt_len; i++) {
+			rx_pkt_buf[i] = rx_get();
+			c += rx_pkt_buf[i];
+		}
+		
+		// if checksum pass
+		if( ((rx_pkt_checksum ^ c) & 0xf) == 0 ) {
+			*pkt_type = rx_pkt_type;
+			*length = rx_pkt_len;
+			pass = 1;
+		}
+		
+		read += rx_pkt_len;
+		rx_pkt_wait_for_data = 0;
+	}
+	
+	SRbits.IPL = 7;
+	rxCounter -= read;
+	SRbits.IPL = 0;
+	
+	if(pass) {
+		rx_pkt_read_cursor = 0;
+		return 1;
+	}
+	return 0;
+}
+
+uint8_t get_byte() {
+	if(rx_pkt_read_cursor < rx_pkt_len)
+		return rx_pkt_buf[rx_pkt_read_cursor++];
+	else
+		return 0;
+}
+uint16_t get_word() {
+	if(rx_pkt_read_cursor+2 < rx_pkt_len) {
+		uint16_t r = (rx_pkt_buf[rx_pkt_read_cursor] << 8) | rx_pkt_buf[rx_pkt_read_cursor+1];
+		rx_pkt_read_cursor += 2;
+		return r;
+	} else {
+		return 0;
+	}	
+}
+
+static uint8_t pkt_buf[MAX_PKT_SIZE];
+static uint8_t pkt_size = 0;
+
+void start_packet(uint8_t type) {
+	pkt_size = PACKET_HEADER;
+	pkt_buf[2] = type;
+}
+void put_byte(uint8_t b) {
+	pkt_buf[pkt_size++] = b;
+}
+void put_word(uint16_t w) {
+	pkt_buf[pkt_size] = w >> 8;
+	pkt_buf[pkt_size+1] = w;
+	pkt_size+=2;
+}
+void end_packet() {
+	pkt_buf[0] = PACKET_SYNC;
+	uint8_t payload_size = pkt_size-PACKET_HEADER;
+	pkt_buf[3] = payload_size;
+	pkt_buf[1] = 0;
+	int i;
+	for(i=PACKET_HEADER; i < pkt_size; i++) {
+		pkt_buf[1] += pkt_buf[i];
+	}
+	
+	pkt_buf[1] = ((payload_size + pkt_buf[2]) << 4) | (pkt_buf[1] & 0xf);
+	
+	for(i=0; i < pkt_size; i++) {
+		while(U1STAbits.UTXBF);
+		U1TXREG = pkt_buf[i];
+	}
+}

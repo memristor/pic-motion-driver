@@ -21,5 +21,5 @@ test.elf: $(obj)
 	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -o $@ -omf=elf -no-legacy-libc -O0 -msmart-io=1 -Wall -msfr-warn=off
 
 clean:
-	rm -f *.o
+	rm -f src/*.o
 	rm -f test.elf test.hex

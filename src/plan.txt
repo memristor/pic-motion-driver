@@ -2,6 +2,11 @@
 todo:
 	
 Nikola movement
-	- general stuck condition
+	+ sync byte to send status
+	+ moving backwards
+	- moving sideways
+	- refactor code
+	- periodically send status on request
+	+ uart packet protocol
+	- general stuck condition in regulator
 	- calculate curve
-	- moving backwards

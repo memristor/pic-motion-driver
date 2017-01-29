@@ -1,7 +1,7 @@
 /*
  * Kod na eurobot-u; Ogranicena max brzina na 180;
  *
- * Comment: X napred pravo; Y bocno (na desno); orjentacija pozitivan smer u odnosu na X (clockwise)
+ * Comment: X napred pravo; Y bocno (na desno); orjentacija pozitivan direction u odnosu na X (clockwise)
  */
 #define FCY 29491200ULL
 
@@ -12,11 +12,6 @@
 #include <libpic30.h>
 #include <p33FJ128MC802.h>
 
-
-// _FWDT (FWDTEN_OFF);
-// _FOSCSEL(FNOSC_FRCPLL);			// Internal FRC oscillator with PLL
-
-
 #pragma config FWDTEN = OFF, \
 			   FNOSC = FRCPLL
 
@@ -25,7 +20,7 @@ int main(void)
 {
 	int tmpX, tmpY, tmp, tmpO;
 
-	char komanda, v, smer, tmpSU;
+	char komanda, v, direction, tmpSU;
 
 	/* Configure Oscillator to operate the device at 30Mhz
 	   Fosc= Fin*M/(N1*N2), Fcy=Fosc/2
@@ -56,173 +51,141 @@ int main(void)
 	//INTCON1bits.NSTDIS = 1; // zabranjeni ugnjezdeni prekidi
 
 	PortInit();
-	// LATBbits.LATB8 = 1;
-	// LATBbits.LATB9 = 0;
-	// LATBbits.LATB15 = 0;
-	// LATBbits.LATB14 = 1;
-	// while(1) {
-		
-	// }
+
 	UART_Init(57600);
 	TimerInit();
 	QEIinit();
 	
-	//Ovo je bilo zakomentarisano
 	CloseMCPWM();
 	PWMinit();
 	
 	resetDriver();
 
-	//setSpeed(0x80); //0x80 = 128 ; 0x64 = 100 0x32 = 50 0x0A = 10
-	setSpeed(0x32); //poc brz je 10 /*Milos: podesavanje pocetne brzine*/
+	setSpeed(0x32); //poc brz je 10
 
-	//setSpeedAccel(K2;	//K2 je za 1m/s /bilo je 2
-	//ima li efekta podesavati setSpeedAccel nakon setSpeed?
-
-	//CloseMCPWM();//da ne drzi poziciju kada se upali, jer se motorcina cuje, skripi
-
-	// while(1)
-	// {gotoXY(0,0,100,1);}
 	while(1)
 	{
-		// if(getStatus() == STATUS_MOVING)
-			// komanda = UART_GetLastByte();
-		// else
-		komanda = getch();
-
+		// komanda = getch();
+		uint8_t len;
+		
+		if(!try_read_packet((uint8_t*)&komanda, &len)) continue;
+		
 		switch(komanda)
 		{
 			// zadavanje trenutne pozicije
 			case 'I':
-				// tmpX = (getch() << 8) | getch();
-				// tmpY = (getch() << 8) | getch();
-				// tmpO = (getch() << 8) | getch();
-				tmpX = getint16();
-				tmpY = getint16();
-				tmpO = getint16();
-
+				
+				// tmpX = getint16();
+				// tmpY = getint16();
+				// tmpO = getint16();
+				tmpX = get_word();
+				tmpY = get_word();
+				tmpO = get_word();
 				setPosition(tmpX, tmpY, tmpO);
 
 				break;
 				
 			case 'd':
-				debug_level(getch());
+				// debug_level(getch());
+				debug_level(get_byte());
 				break;
 				
-				// citanje pozicije i statusa
+				// read status and position
 			case 'P':
 				sendStatusAndPosition();
 				break;
 
 
-				//zadavanje max. brzine (default K2/2); VminMax(0-255)
+				// set speed; Vmax(0-255)
 			case 'V':
-				tmp = getch();
+				// tmp = getch();
+				tmp = get_byte();
 				setSpeed(tmp);
 				break;
 
 			case 'r':
-				setRotationSpeed(getch(), getch());
+				// setRotationSpeed(getch(), getch());
+				setRotationSpeed(get_byte(), get_byte());
 				break;
-				//kretanje pravo [mm]
-				// 300mm napred; HEX: 44012c00
+				
+				
+				// move forward [mm]
 			case 'D':
-				// tmp = getch() << 8;
-				// tmp |= getch();
-				tmp = getint16();
-				v = getch();
+				// tmp = getint16();
+				// v = getch();
+				tmp = get_word();
+				v = get_byte();
 
 				PWMinit();
-				kretanje_pravo(tmp, v);//(distanca, krajnja brzina); krajnja brzina uvek 0
-				/*Milos: Moze li se iskoristiti da je v != 0???*/
+				forward(tmp, v);
 
 				break;
 
 				//relativni ugao [stepen]
 			case 'T':
-				// tmp = getch() << 8;
-				// tmp |= getch();
-				tmp = getint16();
+				// tmp = getint16();
+				tmp = get_word();
 
 				PWMinit();
-				okret(tmp);
-
-				// putch('T');//dodao
-				// putch(tmp >> 8); //dodao
-				// putch(tmp);
-
-
+				turn(tmp);
 				break;
 				
 				//apsolutni ugao [stepen]
 			case 'A':
-				// tmp = getch() << 8;
-				// tmp |= getch();
-				tmp = getint16();
+				// tmp = getint16();
+				tmp = get_word();
 
 				PWMinit();
-				rotiraj_robota_apsolutni_ugao(tmp);
+				rotate_absolute_angle(tmp);
 
 				break;
 
-				//idi u tacku (Xc, Yc) [mm]
+				// rotate to and then move to point (Xc, Yc) [mm]
 			case 'G':
-				// tmpX = getch() << 8;
-				// tmpX |= getch();
-				tmpX = getint16();
-				// tmpY = getch() << 8;
-				// tmpY |= getch();
-				tmpY = getint16();
-				v = getch();
-				smer = getch(); //guzica VS glava;bilo koji + broj jedan smer; -broj drugi smer
+				// tmpX = getint16();
+				// tmpY = getint16();
+				// v = getch();
+				// direction = getch(); // + means forward, - means backward
+				tmpX = get_word();
+				tmpY = get_word();
+				v = get_byte();
+				direction = get_byte(); // + means forward, - means backward
 
 				PWMinit();
-				gotoXY(tmpX, tmpY, v, smer); //(x koordinata, y koordinata, v=krajnja brzina, smer kretanja)
-
+				turn_and_go(tmpX, tmpY, v, direction); //(x, y, end speed, direction)
 				break;
-
 				     
 			case 'Q':
-				// tmpX = getch() << 8;
-				// tmpX |= getch();
-				tmpX = getint16();
-				// tmpY = getch() << 8;
-				// tmpY |= getch();
-				tmpY = getint16();
+				// tmpX = getint16();
+				// tmpY = getint16();
 				
+				// tmpO = getch();
+				// tmpSU = getch();
+				// direction = getch();
+				tmpX = get_word();
+				tmpY = get_word();
 				
-				//                tmpO = getch() << 8;
-				//                tmpO |= getch();      //ovako je bilo, mislim da nije ok                
-				tmpO = getch();         //jer je Fi INT, a ne long
-				tmpSU = getch();        //ovim se odredjuje smer ugla
-				smer = getch();
+				tmpO = get_word();
+				tmpSU = get_word();
+				direction = get_byte();
 
 				PWMinit();
-				luk(tmpX, tmpY, tmpO, tmpSU, smer);
+				luk(tmpX, tmpY, tmpO, tmpSU, direction);
 
 				break;
 			
 			case 'N': {
 				
-				tmpX = getint16();
-				tmpY = getint16();
-				int direction = getch();
+				// tmpX = getint16();
+				// tmpY = getint16();
+				// int direction = getch();
+				tmpX = get_word();
+				tmpY = get_word();
+				int direction = get_byte();
+				
 				PWMinit();
 				move_to(tmpX, tmpY, direction);
 				
-				/*
-				// tmpX = getch() << 8;
-				// tmpX |= getch();
-				tmpX = getint16();
-				// tmpY = getch() << 8;
-				// tmpY |= getch();
-				tmpY = getint16();
-				v = getch();
-				smer = getch(); //guzica VS glava;bilo koji + broj jedan smer; -broj drugi smer
-
-				PWMinit();
-				gotoXY(tmpX, tmpY, v, smer); //(x koordinata, y koordinata, v=krajnja brzina, smer kretanja)
-				*/
 				break;
 			}
 				//ukopaj se u mestu

@@ -4,11 +4,13 @@
  *
  * Created on November 24, 2012, 3:39 PM
  */
+ 
+#include <stdint.h>
 
 #ifndef UART_H
 #define	UART_H
 
-#define RX_BUF_LEN  16
+#define RX_BUF_LEN  32
 #define RX_BUF_MASK  0x0f
 
 #ifndef FCY
@@ -122,5 +124,18 @@ void SendLong(long num);
 void NewLine(void);
 
 unsigned char UART_GetLastByte(void);
+
+// reading packet
+uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length);
+// after succeeding try_read_packet
+uint8_t get_byte();
+uint16_t get_word();
+
+
+// writing packet
+void start_packet(uint8_t type);
+void put_byte(uint8_t b);
+void put_word(uint16_t w);
+void end_packet();
 
 #endif	/* UART_H */

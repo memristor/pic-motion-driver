@@ -3,14 +3,15 @@
 #include "uart.h"
 #include "pwm.h"
 #include "init.h"
+#include <stdint.h>
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
 #include <math.h>
 
 //POMOCNE PROMENLJIVE:
-static int zaglav_off=0;
+static int stuck_off=0;
 
-static const int zaglav_wait1 = 600, zaglav_wait2 = 200;
+static const int stuck_wait1 = 600, stuck_wait2 = 200;
 
 // setuje se u f-ji setSpeed
 static unsigned char brzinaL = 0x80;
@@ -19,7 +20,7 @@ static float vmax, accel;
 // menjaju se sa setSpeedAccel()
 /*
 	omega - put koji jedan tocak predje vise od drugog po milisekundi
-	tj. duzina luka = rastojanje_tockova * ugao
+	tj. length luka = wheel_distance * ugao
 	alfa - current_speed promene omege
 */
 static float omega, alfa;
@@ -42,7 +43,7 @@ static const long K1_p = K1;
 static long prevPositionL,prevPositionR;
 static volatile signed long current_speed, angular_speed;
 
-static int debug = 0;
+static int debug = 0xff;
 
 static enum States currentStatus = STATUS_IDLE;
 
@@ -311,20 +312,20 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	PWMD = commande_distance + commande_rotation;
 
 	// saturacija,ogranicava max brzinu kretanja
-	if(PWMD <= -PWM_MAX_SPEED)
-		PWMD = -PWM_MAX_SPEED;
-	else if(PWMD >= PWM_MAX_SPEED)
-		PWMD = PWM_MAX_SPEED;
+	// if(PWMD <= -PWM_MAX_SPEED)
+		// PWMD = -PWM_MAX_SPEED;
+	// else if(PWMD >= PWM_MAX_SPEED)
+		// PWMD = PWM_MAX_SPEED;
 		
-	// PWMD = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWMD);
+	PWMD = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWMD);
 
-	if(PWML <= -PWM_MAX_SPEED)
-		PWML = -PWM_MAX_SPEED;
-	else if(PWML >= PWM_MAX_SPEED)
-		PWML = PWM_MAX_SPEED;
+	// if(PWML <= -PWM_MAX_SPEED)
+		// PWML = -PWM_MAX_SPEED;
+	// else if(PWML >= PWM_MAX_SPEED)
+		// PWML = PWM_MAX_SPEED;
 		
-	// PWML = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWML);
-	//izbor smera,i kontrola hardvera:
+	PWML = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWML);
+	//izbor directiona,i kontrola hardvera:
 
 	
 	if (PWMD >= 0)
@@ -426,8 +427,19 @@ char state_to_ascii(enum States state) {
 
 void sendStatusAndPosition(void)
 {
+	start_packet('P');
+		put_byte(state_to_ascii(currentStatus));
+		put_word(X);
+		put_word(Y);
+		put_word(orientation * 360 / K1 + 0.5);
+		put_word(current_speed);
+	end_packet();
+	
+	return;
 	int tmpO;
-
+	putch(SYNC_BYTE);
+	putch(SYNC_BYTE);
+	putch(SYNC_BYTE);
 	putch(state_to_ascii(currentStatus));
 	putint16(X);
 	putint16(Y);
@@ -472,7 +484,9 @@ static char getCommand(void)
 	// U1STAbits.OERR = 0;
 	if(UART_CheckRX()) // proverava jel stigao karakter preko serijskog porta
 	{
-		command = getch();
+		// command = getch();
+		uint8_t len;
+		if(!try_read_packet((uint8_t*)&command, &len)) return OK;
 
 		switch(command)
 		{           
@@ -507,7 +521,8 @@ static char getCommand(void)
 				return ERROR;
 
 			case 'V':
-				setSpeed(getch());
+				// setSpeed(getch());
+				setSpeed(get_byte());
 				break;
 			
 			case 'i':
@@ -541,7 +556,7 @@ static char getCommand(void)
 	return OK;
 }
 
-static char checkStuckCondition(void)
+static char check_stuck_condition(void)
 {
 	static int zaglav=0;
 	static unsigned long prev_sys_time=0;
@@ -550,7 +565,7 @@ static char checkStuckCondition(void)
 	{
 		if((absl((long)positionL - prevPositionL) < (15+brzinaL*0.75) ) || (absl((long)positionR - prevPositionR) < (15+brzinaL*0.75) )) 
 		{
-			if(!zaglav_off)
+			if(!stuck_off)
 				zaglav++;
 			if(zaglav == 5)
 			{
@@ -575,23 +590,21 @@ static char checkStuckCondition(void)
 	return OK;
 }
 
-static char checkStuckCondition_angle(void)
+static char check_stuck_condition_angle(void)
 {
-	static int zaglav=0;
+	static int stuck=0;
 	static unsigned long prev_sys_time=0;
-	// otprlike svakih 10ms
+	// 10ms periodical
 	if( sys_time - prev_sys_time >= 10 )
 	{
 		if( absl((long)orientation-prev_orientation) < 20+1.4*brzinaL)
-		// 200 imp je jedan mm,znaci da ocekujemo da predje vise od cetvrt ugla u toku 10ms
-		// || (absl((long)positionL - prevPositionL)<(10+0.8*brzinaL)) || (absl((long)positionR - prevPositionR)<(10+0.8*brzinaL)) ) 
 		{
-			if(!zaglav_off)
-				zaglav++;
+			if(!stuck_off)
+				stuck++;
 				
-			if(zaglav == 5) //ide od 0
+			if(stuck == 5)
 			{
-				zaglav=0;
+				stuck=0;
 				d_ref = L;
 				t_ref = orientation;
 				stop();
@@ -602,8 +615,8 @@ static char checkStuckCondition_angle(void)
 		}
 		else
 		{
-			// nije zaglavljen
-			zaglav = 0;
+			// not stuck
+			stuck = 0;
 			// pamti trenutnu poziciju
 			prev_orientation = orientation;
 			prevPositionL = positionL;
@@ -616,14 +629,14 @@ static char checkStuckCondition_angle(void)
 
 
 // gadjaj tacku (Xd, Yd)
-void gotoXY(int Xd, int Yd, unsigned char krajnja_brzina, char smer)
+void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 {
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
 	long L_dist, L0, L1, L2, L3;
 	long D0, D1, D2;
 	float v_vrh, v_end, v0;
-	int duzina, ugao;
+	int length, ugao;
 	long long int Xdlong, Ydlong;
 	
 	Xdlong = (long long)Xd * K2 * 2;
@@ -632,31 +645,31 @@ void gotoXY(int Xd, int Yd, unsigned char krajnja_brzina, char smer)
 	d_ref=L;
 	// v_ref=0;
 	v0 = current_speed;
-	smer = (smer >= 0 ? 1 : -1);
+	direction = (direction >= 0 ? 1 : -1);
 
 	//okreni se prema krajnjoj tacki, nadji ugao gde treba srenuti
 	ugao = atan2(Ydlong-Ylong, Xdlong-Xlong) * (180 / PI) - orientation * 360 / K1;
 	
-	if(smer < 0)
+	if(direction < 0)
 		ugao += 180;
 	
 	ugao = angle_range_fix(ugao);
 
-	if(okret(ugao) == ERROR)
+	if(turn(ugao) == ERROR)
 		return;
 
-	// duzina = sqrt((X - Xd) * (X - Xd) + (Y - Yd) * (Y - Yd)); //put koji treba preci
-	duzina = getDistanceTo(Xd, Yd); //put koji treba preci
+	// length = sqrt((X - Xd) * (X - Xd) + (Y - Yd) * (Y - Yd)); //put koji treba preci
+	length = getDistanceTo(Xd, Yd); //put koji treba preci
 
-	if((duzina < 100) && (vmax > K2/32)) {
+	if((length < 100) && (vmax > K2/32)) {
 		setSpeedAccel(VMAX/3);// OVO JE DODATO
 	}
 
-	//kretanje_pravo(duzina, krajnja_brzina);
-	v_end = vmax * krajnja_brzina / 256;
+	//forward(length, end_speed);
+	v_end = vmax * end_speed / 256;
 	
 	//pretvaranje u inkrem
-	L_dist = (long)(duzina * K2);
+	L_dist = (long)(length * K2);
 
 	// racunanje koliko ce trajati svaka faza
 	T1 = (vmax - current_speed) / accel;
@@ -706,15 +719,15 @@ void gotoXY(int Xd, int Yd, unsigned char krajnja_brzina, char smer)
 			return;
 		}
 			
-		if( t > (t0+zaglav_wait1) && t < (t3-zaglav_wait2) )
+		if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )
 		{
-			if (checkStuckCondition() == STATUS_STUCK)
+			if (check_stuck_condition() == STATUS_STUCK)
 				return;
 		}
 		
 		if(t <= t2) // obnavlja referencu ugla,tj proverava da li je dodatno skrenuo
 		{
-			if(smer > 0)
+			if(direction > 0)
 				t_ref = (atan2(Ydlong-Ylong, Xdlong-Xlong) / (2 * PI)) * K1;
 			// ovo ispod je matematicki ekvivalentno ovom iznad
 			else
@@ -724,17 +737,17 @@ void gotoXY(int Xd, int Yd, unsigned char krajnja_brzina, char smer)
 		if(t <= t1) // faza ubrzanja
 		{
 			// v_ref = v0 + accel * (t-t0);
-			D1 = D2 = d_ref = D0 + smer * (v0 * (t-t0) + accel * (t-t0)*(t-t0)/2);
+			D1 = D2 = d_ref = D0 + direction * (v0 * (t-t0) + accel * (t-t0)*(t-t0)/2);
 		}
 		else if(t <= t2) // faza konstantne brzine
 		{
 			// v_ref = vmax;
-			D2 = d_ref = D1 + smer * vmax * (t-t1);
+			D2 = d_ref = D1 + direction * vmax * (t-t1);
 		}
 		else if(t <= t3) // faza usporenja
 		{
 			// v_ref = vmax - accel * (t-t2);
-			d_ref = D2 + smer * (vmax * (t-t2) - accel * (t-t2) * (t-t2) / 2);
+			d_ref = D2 + direction * (vmax * (t-t2) - accel * (t-t2) * (t-t2) / 2);
 		}
 	}
 	currentStatus = STATUS_IDLE;
@@ -742,7 +755,7 @@ void gotoXY(int Xd, int Yd, unsigned char krajnja_brzina, char smer)
 
 
 // funkcija za kretanje pravo s trapezoidnim profilom brzine
-void kretanje_pravo(int duzina, unsigned char krajnja_brzina)
+void forward(int length, unsigned char end_speed)
 {
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
@@ -752,14 +765,14 @@ void kretanje_pravo(int duzina, unsigned char krajnja_brzina)
 	char predznak;
 
 	//Ne moze na manjim rastojanjima od 50cm da ide brzimom koju zelis, ograniceno je na /3 brzine
-	//    if((duzina < 700) && (duzina > -700))
+	//    if((length < 700) && (length > -700))
 	//      setSpeedAccel(K2 / 3);//OVO je bilo zakoment.
 	d_ref=L;
 	v_ref=0;// PROVERITI DA LI ZBOG OVOGA LUDI!!!
 	v0 = v_ref;
-	v_end = vmax * krajnja_brzina / 256;
-	predznak = (duzina >= 0) ? 1 : -1;
-	L_dist = (long)duzina * K2; // konverzija u inkremente
+	v_end = vmax * end_speed / 256;
+	predznak = (length >= 0) ? 1 : -1;
+	L_dist = (long)length * K2; // konverzija u inkremente
 
 	T1 = (vmax - v_ref) / accel;
 	L0 = L;
@@ -770,13 +783,13 @@ void kretanje_pravo(int duzina, unsigned char krajnja_brzina)
 
 	if((L1 + L3) < (long)predznak * L_dist)
 	{
-		//moze da dostigne vmax
+		// can reach
 		L2 = predznak * L_dist - L1 - L3;
 		T2 = L2 / vmax;
 	}
 	else
 	{
-		//ne moze da dostigne vmax
+		// can't reach vmax
 		T2 = 0;
 		v_vrh = sqrt(accel * predznak * L_dist + (v_ref * v_ref + v_end * v_end) / 2);
 		if((v_vrh < v_ref) || (v_vrh < v_end))
@@ -804,9 +817,9 @@ void kretanje_pravo(int duzina, unsigned char krajnja_brzina)
 		if(getCommand() == ERROR)
 			return;
 
-		if( t > (t0+zaglav_wait1) && t < (t3-zaglav_wait2) )   
+		if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )   
 		{
-			if (checkStuckCondition() == STATUS_STUCK)
+			if (check_stuck_condition() == STATUS_STUCK)
 				return;
 		}
 		
@@ -831,16 +844,16 @@ void kretanje_pravo(int duzina, unsigned char krajnja_brzina)
 }
 
 // funkcija za dovodjenje robota u zeljenu apsolutnu orientaciju
-void rotiraj_robota_apsolutni_ugao(int ugao)
+void rotate_absolute_angle(int ugao)
 {
 	int tmp = ugao - orientation * 360 / K1;
 	tmp = angle_range_fix(tmp);
 
-	okret(tmp);
+	turn(tmp);
 }
 
 // funkcija za okretanje oko svoje ose s trapezoidnim profilom brzine
-char okret(int ugao)
+char turn(int ugao)
 {
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
@@ -881,9 +894,9 @@ char okret(int ugao)
 			if(getCommand() == ERROR)
 				return ERROR;
 
-			if( t > (t0+zaglav_wait1) && t < (t3-zaglav_wait2) )
+			if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )
 			{
-				if (checkStuckCondition_angle() == STATUS_STUCK)
+				if (check_stuck_condition_angle() == STATUS_STUCK)
 					return ERROR;
 			}
 			if(t <= t1)
@@ -913,37 +926,37 @@ char okret(int ugao)
 
 
 
-void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer)
+void luk(long Xc, long Yc, int Fi, char direction_ugla, char direction)
 {
 	float R, Fi_pocetno, delta, luk;
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
 	long Fi_total, Fi1;
 	float v_poc, dist_ref, ugao_ref, w_ref = 0, v_ref = 0;
-	char predznak;
-	int ugao;
+	char sign;
+	int angle;
 
 
-	if (smer_ugla)
-		predznak = 1;
+	if (direction_ugla)
+		sign = 1;
 	else 
-		predznak = -1;
+		sign = -1;
 
 	// R = sqrt(((X-Xc) * (X-Xc) + (Y-Yc) * (Y-Yc)));
 	R = getDistanceTo(Xc, Yc);
 	Fi_pocetno = atan2(((int)Y-(int)Yc), ((int)X-(int)Xc));
-	ugao = Fi_pocetno * 180 / PI;
-	smer = (smer >= 0 ? 1 : -1);
+	angle = Fi_pocetno * 180 / PI;
+	direction = (direction >= 0 ? 1 : -1);
 
-	ugao = (ugao + smer * predznak * 90) % 360;
-	ugao = angle_range_fix(ugao);
+	angle = (angle + direction * sign * 90) % 360;
+	angle = angle_range_fix(angle);
 
-	ugao -= orientation * 360 / K1;
-	ugao %= 360;
+	angle -= orientation * 360 / K1;
+	angle %= 360;
 
-	ugao = angle_range_fix(ugao);
+	angle = angle_range_fix(angle);
 	
-	if(okret(ugao))
+	if(turn(angle))
 		return;
 
 	v_poc = vmax;
@@ -952,17 +965,17 @@ void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer)
 
 	T1 = T3 = omega / alfa;
 	Fi1 = alfa * T1 * T1 / 2;
-	if(Fi1 > (predznak * Fi_total / 2))
+	if(Fi1 > (sign * Fi_total / 2))
 	{
 		//trougaoni profil grafika brzine
-		Fi1 = predznak  * Fi_total / 2;
+		Fi1 = sign  * Fi_total / 2;
 		T1 = T3 = sqrt(2 * Fi1 / alfa);
 		T2 = 0;
 	}
 	else
 	{
 		//trapezni profil grafika brzine
-		T2 = (predznak * Fi_total - 2 * Fi1) / omega;
+		T2 = (sign * Fi_total - 2 * Fi1) / omega;
 	}
 
 	t = t0 = sys_time;
@@ -984,9 +997,9 @@ void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer)
 			return;
 		}
 
-		if( t > (t0+zaglav_wait1) && t < (t3-zaglav_wait2) )
+		if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )
 		{
-			if(checkStuckCondition() == STATUS_STUCK)
+			if(check_stuck_condition() == STATUS_STUCK)
 			{
 				setSpeedAccel(v_poc);
 				return;
@@ -997,10 +1010,10 @@ void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer)
 		{
 			w_ref += alfa;
 			v_ref += accel;
-			delta = predznak * (w_ref - alfa / 2);
-			luk = predznak * delta * R / rastojanje_tockova;
+			delta = sign * (w_ref - alfa / 2);
+			luk = sign * delta * R / wheel_distance;
 			ugao_ref += delta;
-			dist_ref += smer * luk;
+			dist_ref += direction * luk;
 			t_ref = ugao_ref;
 			d_ref = dist_ref;
 		}
@@ -1008,10 +1021,10 @@ void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer)
 		{
 			w_ref = omega;
 			v_ref = vmax;
-			delta = predznak * omega;
-			luk = predznak * delta * R / rastojanje_tockova;
+			delta = sign * omega;
+			luk = sign * delta * R / wheel_distance;
 			ugao_ref += delta;
-			dist_ref += smer * luk;
+			dist_ref += direction * luk;
 			t_ref = ugao_ref;
 			d_ref = dist_ref;
 		}
@@ -1019,10 +1032,10 @@ void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer)
 		{
 			w_ref -= alfa;
 			v_ref -= accel;
-			delta = predznak * (w_ref + alfa / 2);
-			luk = predznak * delta * R / rastojanje_tockova;
+			delta = sign * (w_ref + alfa / 2);
+			luk = sign * delta * R / wheel_distance;
 			ugao_ref += delta;
-			dist_ref += smer * luk;
+			dist_ref += direction * luk;
 			t_ref = ugao_ref;
 			d_ref = dist_ref;
 		}
@@ -1031,7 +1044,7 @@ void luk(long Xc, long Yc, int Fi, char smer_ugla, char smer)
 	currentStatus = STATUS_IDLE;
 }
 
-long getIncAngleDifference(long a, long b) {
+long get_inc_angle_diff(long a, long b) {
 	long d = a - b;
 	if(d > K1/2)
 		d -= K1;
@@ -1040,7 +1053,7 @@ long getIncAngleDifference(long a, long b) {
 	return d;
 }
 
-int getDegAngleDifference(int a, int b) {
+int get_deg_angle_diff(int a, int b) {
 	long d = a - b;
 	if(d > 180)
 		d -= 360;
@@ -1063,7 +1076,7 @@ void debug_level(int level) {
 */
 void move_to(long x, long y, char direction) {
 	float speed = current_speed;
-	float rot_speed = angular_speed; /* [inc/ms] */
+	float rotation_speed = angular_speed; /* [inc/ms] */
 	// float acceleration = accel; /* [inc/ms] */
 	
 	// long min_angle = DEG_TO_INC_ANGLE(30);
@@ -1075,7 +1088,7 @@ void move_to(long x, long y, char direction) {
 	long goal_angle;
 	long angle_diff;
 	goal_angle = RAD_TO_INC_ANGLE(atan2(y-Y, x-X));
-	angle_diff = getIncAngleDifference(goal_angle, orientation);
+	angle_diff = get_inc_angle_diff(goal_angle, orientation);
 	
 	if(direction > 0) direction = 1;
 	else if(direction < 0) direction = -1;
@@ -1089,22 +1102,6 @@ void move_to(long x, long y, char direction) {
 		}
 	}
 	
-	// TODO: make chaining work (robot already moving)
-	
-	
-	/*
-	if(absl(d_ref - L) < 100L) {
-		// if angle too big (> 60 degrees or some given degree), then
-			  // rotate to some min degree
-		if(absl(angle_diff) > min_angle) {
-			okret(
-				INC_TO_DEG_ANGLE(
-				inc_angle_range_fix(orientation + (angle_diff < 0 ? (angle_diff+min_angle) : (angle_diff-min_angle) ))
-				)
-				);
-		}
-	}
-	*/
 	currentStatus = STATUS_MOVING;
 	
 	long D = d_ref;
@@ -1127,9 +1124,9 @@ void move_to(long x, long y, char direction) {
 		
 		// t = sys_time;
 		/*
-		if( t > t0 + zaglav_wait1 )
+		if( t > t0 + stuck_wait1 )
 		{
-			if(checkStuckCondition() == STATUS_STUCK)
+			if(check_stuck_condition() == STATUS_STUCK)
 			{
 				// setSpeedAccel(v_poc);
 				return;
@@ -1138,14 +1135,20 @@ void move_to(long x, long y, char direction) {
 		*/
 		
 		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
-		angle_diff = getIncAngleDifference(goal_angle, orientation);
+		long orient = orientation;
+		
+		if(direction == -1) {
+			orient = inc_angle_range_fix( orient + DEG_TO_INC_ANGLE( 180 ) );
+		}
+		
+		angle_diff = get_inc_angle_diff(goal_angle, orient);
 		
 		long abs_angle_diff = absl(angle_diff);
 		
 		if(abs_angle_diff > DEG_TO_INC_ANGLE(20)) {
-			rot_speed = minf( rot_speed + alfa/2, omega/2 );
+			rotation_speed = minf( rotation_speed + alfa/2, omega/2 );
 		} else if(abs_angle_diff > DEG_TO_INC_ANGLE(3)){
-			rot_speed = maxf( rot_speed - alfa/2, min_speed );
+			rotation_speed = maxf( rotation_speed - alfa/2, min_speed );
 		} else {
 			R = orientation;
 		}
@@ -1168,7 +1171,7 @@ void move_to(long x, long y, char direction) {
 			putch('\r');
 			dbg(0, speed);
 			dbg(1, angle_diff);
-			dbg(2, rot_speed);
+			dbg(2, rotation_speed);
 			dbg(3, (int)dist);
 			dbg(4, orientation);
 			dbg(5, goal_angle);
@@ -1181,21 +1184,11 @@ void move_to(long x, long y, char direction) {
 		}
 		
 		D += direction * speed;
-		R += sign(angle_diff) * rot_speed;
+		R += sign(angle_diff) * rotation_speed;
 		
 		d_ref = D;
 		t_ref = R;
-		
-		if(getCommand() == ERROR) {
-			if(currentStatus == STATUS_IDLE) {
-				D += direction * speed;
-				R += sign(angle_diff) * rot_speed;
-			}
-			return;
-		}
-		
 	}
-	
 }
 
 
@@ -1236,14 +1229,13 @@ void setSpeed(unsigned char tmp)
 		pomnozeno sa 3.9 daje 997.3275 sto je 1 metar, znaci maksimalna brzina je 1 m/s
 	*/
 	setSpeedAccel(VMAX * (unsigned char)brzinaL / 256);
-	putch(brzinaL);
 }
 
 
 void iskljuciZaglavljivanje(void) {
-	zaglav_off=1;
+	stuck_off=1;
 }
 
 void ukljuciZaglavljivanje(void) {
-	zaglav_off=0;
+	stuck_off=0;
 }
