@@ -1,7 +1,7 @@
 /*
- * Kod na eurobot-u; Ogranicena max brzina na 180;
+ * Code for eurobot; max speed limited to 180
  *
- * Comment: X napred pravo; Y bocno (na desno); orjentacija pozitivan direction u odnosu na X (clockwise)
+ * Comment: X forward; Y right;
  */
 #define FCY 29491200ULL
 
@@ -38,17 +38,17 @@ int main(void)
 
 	
 	__builtin_write_OSCCONL(OSCCON & 0xDF);
-	RPINR18bits.U1RXR = 0;		//UART1 RX na RP0- pin 4
-	RPOR0bits.RP1R = 3;			//UART1 TX na RP1- pin 5
-	RPINR14bits.QEA1R = 2;		//QEI1A na RP2
-	RPINR14bits.QEB1R = 3;		//QEI1B na RP3
+	RPINR18bits.U1RXR = 0;		//UART1 RX -> RP0- pin 4
+	RPOR0bits.RP1R = 3;			//UART1 TX -> RP1- pin 5
+	RPINR14bits.QEA1R = 2;		//QEI1A -> RP2
+	RPINR14bits.QEB1R = 3;		//QEI1B -> RP3
 
-	RPINR16bits.QEA2R = 4;		//QEI2A na RP4
-	RPINR16bits.QEB2R = 7;		//QEI2B na RP7
+	RPINR16bits.QEA2R = 4;		//QEI2A -> RP4
+	RPINR16bits.QEB2R = 7;		//QEI2B -> RP7
 
 	__builtin_write_OSCCONL(OSCCON | (1<<6));
 
-	//INTCON1bits.NSTDIS = 1; // zabranjeni ugnjezdeni prekidi
+	//INTCON1bits.NSTDIS = 1; // disable recursive interrupts?
 
 	PortInit();
 
@@ -61,7 +61,7 @@ int main(void)
 	
 	reset_driver();
 
-	set_speed(0x32); //poc brz je 10
+	set_speed(0x32);
 
 	while(1)
 	{
@@ -74,11 +74,10 @@ int main(void)
 			case 'I':
 				// x [mm], y [mm], orientation
 				set_position(get_word(), get_word(), get_word());
-
 				break;
 				
-			case 'd':
-				debug_flags(get_byte());
+			case 'c':
+				set_control_flags(get_byte());
 				break;
 				
 				// read status and position
@@ -86,11 +85,13 @@ int main(void)
 				send_status_and_position();
 				break;
 
+			case 'p':
+				set_status_update_interval(get_word());
+				break;
 
 				// set speed; Vmax(0-255)
 			case 'V':
-				tmp = get_byte();
-				set_speed(tmp);
+				set_speed(get_byte());
 				break;
 
 			case 'r':

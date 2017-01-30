@@ -5,10 +5,11 @@
  * Created on November 24, 2012, 3:39 PM
  */
  
-#include <stdint.h>
 
 #ifndef UART_H
 #define	UART_H
+
+#include <stdint.h>
 
 #define RX_BUF_LEN  32
 #define RX_BUF_MASK  0x0f

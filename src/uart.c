@@ -367,7 +367,7 @@ uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 		}
 	}
 	
-	if(rx_pkt_wait_for_data == 1 && rxCounter >= rx_pkt_len) {
+	if(rx_pkt_wait_for_data == 1 && rxCounter-read >= rx_pkt_len) {
 		// check content checksum
 		uint8_t c = 0;
 					
@@ -416,7 +416,6 @@ uint16_t get_word() {
 	}	
 }
 
-// TODO: use pkt_buf double buffer (buffer flipping) to allow use from interrupt
 static uint8_t pkt_buf[MAX_PKT_SIZE];
 static uint8_t pkt_size = 0;
 
@@ -433,7 +432,6 @@ void put_word(uint16_t w) {
 	pkt_size+=2;
 }
 
-
 void end_packet() {
 	pkt_buf[0] = PACKET_SYNC;
 	uint8_t payload_size = pkt_size-PACKET_HEADER;
@@ -447,10 +445,8 @@ void end_packet() {
 	pkt_buf[1] = ((payload_size + pkt_buf[2]) << 4) | (pkt_buf[1] & 0xf);
 	
 	// atomicly send packet
-	SRbits.IPL = 7;
 	for(i=0; i < pkt_size; i++) {
 		while(U1STAbits.UTXBF);
 		U1TXREG = pkt_buf[i];
 	}
-	SRbits.IPL = 0;
 }
