@@ -1,5 +1,5 @@
-#ifndef REGULACIJA_H
-#define	REGULACIJA_H
+#ifndef REGULATOR_H
+#define	REGULATOR_H
 
 
 #define PI	3.1415926535897932384626433832795
@@ -36,89 +36,95 @@
 */
 #define K2	(float)(4*2048.0f / (R_wheel * PI))
 
+/*
+	Encoder used: Part no:MA5D1N4FBK1SA0; Type no.: sca24-5000-N-04-09-64-01-S-00
+*/
+
 #define VMAX K2
 
+// error codes
 #define ERROR 0
 #define BREAK 0
 #define OK 1
 
 #define PWM_MAX_SPEED 3200
 
-// ovo su neke eksperimentalne konstante, trial & error
+// --- regulator PD (proportional, differential) components, trial & error ---
+// depends on timer interrupt period
+
+// for distance regulator
 #define Gp_D	5.5
 #define Gd_D	200
 
+// for rotation regulator
 #define Gp_T	3
 #define Gd_T	90
+// ----------------------------------------------------------------------------
 
 
-#define MILIMETER_TO_DOUBLED_INC(x) ((long long)(x)*K2*2)
-#define MILIMETER_TO_INC(x) ((long long)(x)*K2)
+// unit conversions
+#define MILIMETER_TO_DOUBLED_INC(x) (((long long)(x) >> 1)*K2)
+#define MILIMETER_TO_INC(x) ((long)(x)*K2)
+#define INC_TO_MILIMETER(x) ((x) / K2)
+#define DOUBLED_INC_TO_MILIMETER(x) (((x) / 2) / K2)
 #define DEG_TO_INC_ANGLE(x) ((x)*K1/360)
 #define INC_TO_DEG_ANGLE(x) ((x)*360/K1)
 #define RAD_TO_INC_ANGLE(x) ((x)/(2.0*PI)*K1)
 #define RAD_TO_DEG_ANGLE(x) ((x)*180.0/PI)
 
 
+// debug flags
+#define DBG_MESSAGES 1
 #define DBG_NO_DISTANCE_REGULATOR 2
 #define DBG_NO_ROTATION_REGULATOR 4
 
 
-/*
-	Encoder used: Part no:MA5D1N4FBK1SA0; Type no.: sca24-5000-N-04-09-64-01-S-00
-*/
-
-#define SYNC_BYTE 64
-
-
-enum States
+enum State
 {
-	STATUS_IDLE = 0,
-	STATUS_MOVING,
-	STATUS_ROTATING,
-	STATUS_STUCK,
-	STATUS_ERROR
+	STATUS_IDLE = 'I',
+	STATUS_MOVING = 'M',
+	STATUS_ROTATING = 'R',
+	STATUS_STUCK = 'S',
+	STATUS_ERROR = 'E'
 };
 
-void debug_level(int level);
+void debug_flags(int level);
 
-void resetDriver(void);
+void reset_driver(void);
 
-void setPosition(int X, int Y, int orientation);
+void set_position(int X, int Y, int orientation);
 
-void sendStatusAndPosition(void);
+void send_status_and_position(void);
 
-void setSpeedAccel(float v);
+void set_speed_accel(float v);
 
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction);
 
 void forward(int duzina, unsigned char end_speed);
 
-void rotate_absolute_angle(int ugao);
+void rotate_absolute_angle(int angle);
 
-char turn(int ugao);
-
-void testing();
+char turn(int angle);
 
 void start_command();
 
-void luk(long Xc, long Yc, int Fi, char direction_ugla, char direction);
+void arc(long Xc, long Yc, int Fi, char direction_angle, char direction);
 
 void move_to(long x, long y, char direction);
 
 void stop(void);
 
-void setSpeed(unsigned char tmp);
+void set_speed(unsigned char tmp);
 
-void setRotationSpeed(unsigned char max_speed, unsigned char max_accel);
+void set_rotation_speed(unsigned char max_speed, unsigned char max_accel);
 
-enum States getStatus(void);
+enum State get_status(void);
 
-void forceStatus(enum States);
+void force_status(enum State);
 
-void iskljuciZaglavljivanje(void);
+void set_stuck_on(void);
 
-void ukljuciZaglavljivanje(void);
+void set_stuck_off(void);
 
 #endif	/* REGULACIJA_H */
 

@@ -5,7 +5,7 @@
  */
 #define FCY 29491200ULL
 
-#include "regulacija.h"
+#include "regulator.h"
 #include "uart.h"
 #include "pwm.h"
 #include "init.h"
@@ -20,7 +20,7 @@ int main(void)
 {
 	int tmpX, tmpY, tmp, tmpO;
 
-	char komanda, v, direction, tmpSU;
+	char command, v, direction, tmpSU;
 
 	/* Configure Oscillator to operate the device at 30Mhz
 	   Fosc= Fin*M/(N1*N2), Fcy=Fosc/2
@@ -59,60 +59,47 @@ int main(void)
 	CloseMCPWM();
 	PWMinit();
 	
-	resetDriver();
+	reset_driver();
 
-	setSpeed(0x32); //poc brz je 10
+	set_speed(0x32); //poc brz je 10
 
 	while(1)
 	{
-		// komanda = getch();
-		uint8_t len;
+		uint8_t packet_length;
+		if(!try_read_packet((uint8_t*)&command, &packet_length)) continue;
 		
-		if(!try_read_packet((uint8_t*)&komanda, &len)) continue;
-		
-		switch(komanda)
+		switch(command)
 		{
-			// zadavanje trenutne pozicije
+			// set position and orientation
 			case 'I':
-				
-				// tmpX = getint16();
-				// tmpY = getint16();
-				// tmpO = getint16();
-				tmpX = get_word();
-				tmpY = get_word();
-				tmpO = get_word();
-				setPosition(tmpX, tmpY, tmpO);
+				// x [mm], y [mm], orientation
+				set_position(get_word(), get_word(), get_word());
 
 				break;
 				
 			case 'd':
-				// debug_level(getch());
-				debug_level(get_byte());
+				debug_flags(get_byte());
 				break;
 				
 				// read status and position
 			case 'P':
-				sendStatusAndPosition();
+				send_status_and_position();
 				break;
 
 
 				// set speed; Vmax(0-255)
 			case 'V':
-				// tmp = getch();
 				tmp = get_byte();
-				setSpeed(tmp);
+				set_speed(tmp);
 				break;
 
 			case 'r':
-				// setRotationSpeed(getch(), getch());
-				setRotationSpeed(get_byte(), get_byte());
+				set_rotation_speed(get_byte(), get_byte());
 				break;
 				
 				
 				// move forward [mm]
 			case 'D':
-				// tmp = getint16();
-				// v = getch();
 				tmp = get_word();
 				v = get_byte();
 
@@ -121,18 +108,16 @@ int main(void)
 
 				break;
 
-				//relativni ugao [stepen]
+				// relative angle [degrees]
 			case 'T':
-				// tmp = getint16();
 				tmp = get_word();
 
 				PWMinit();
 				turn(tmp);
 				break;
 				
-				//apsolutni ugao [stepen]
+				// absolute angle [degrees]
 			case 'A':
-				// tmp = getint16();
 				tmp = get_word();
 
 				PWMinit();
@@ -140,28 +125,18 @@ int main(void)
 
 				break;
 
-				// rotate to and then move to point (Xc, Yc) [mm]
+				// rotate to and then move to point (Xc, Yc, v, direction) [mm]
 			case 'G':
-				// tmpX = getint16();
-				// tmpY = getint16();
-				// v = getch();
-				// direction = getch(); // + means forward, - means backward
 				tmpX = get_word();
 				tmpY = get_word();
 				v = get_byte();
 				direction = get_byte(); // + means forward, - means backward
 
 				PWMinit();
-				turn_and_go(tmpX, tmpY, v, direction); //(x, y, end speed, direction)
+				turn_and_go(tmpX, tmpY, v, direction); //(x, y, end_speed, direction)
 				break;
 				     
 			case 'Q':
-				// tmpX = getint16();
-				// tmpY = getint16();
-				
-				// tmpO = getch();
-				// tmpSU = getch();
-				// direction = getch();
 				tmpX = get_word();
 				tmpY = get_word();
 				
@@ -170,15 +145,12 @@ int main(void)
 				direction = get_byte();
 
 				PWMinit();
-				luk(tmpX, tmpY, tmpO, tmpSU, direction);
+				arc(tmpX, tmpY, tmpO, tmpSU, direction);
 
 				break;
 			
+				// x [mm], y [mm], direction {-1 - backwards, 0 - pick closest, 1 - forward}
 			case 'N': {
-				
-				// tmpX = getint16();
-				// tmpY = getint16();
-				// int direction = getch();
 				tmpX = get_word();
 				tmpY = get_word();
 				int direction = get_byte();
@@ -188,35 +160,34 @@ int main(void)
 				
 				break;
 			}
-				//ukopaj se u mestu
+				// stop
 			case 'S':
 				stop();
 
 				break;
 
-				//stani i ugasi PWM; budi mlitav
+				// stop and kill PWM
 			case 's':
 				stop();
 				CloseMCPWM();
 
 				break;
 				
-				//nicemu ne sluzi, resetuje vrednosti svih
+				// reset position, status and speed
 			case 'R':
-				resetDriver();
-
+				reset_driver();
 				break;
 
 			case 'z':
-				iskljuciZaglavljivanje();
+				set_stuck_off();
 				break;
 
 			case 'Z':
-				ukljuciZaglavljivanje();
+				set_stuck_on();
 
 				break;
 			default:
-				forceStatus(STATUS_ERROR);
+				force_status(STATUS_ERROR);
 				break;
 		}
 	}

@@ -5,8 +5,10 @@ Nikola movement
 	+ sync byte to send status
 	+ moving backwards
 	- moving sideways
-	- refactor code
+	* refactor code
 	- periodically send status on request
 	+ uart packet protocol
+		- optional arguments on commands
 	- general stuck condition in regulator
 	- calculate curve
+

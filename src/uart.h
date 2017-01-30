@@ -113,17 +113,17 @@ unsigned int ReadUART1(void);
 
 void WriteUART1(unsigned int data);
 
+unsigned char UART_CheckRX(void);
+unsigned char UART_GetLastByte(void);
+
 unsigned char getch(void);
 unsigned int getint16(void);
-unsigned char UART_CheckRX(void);
 void putch(unsigned char c);
-void putstr(const char* s);
-void dbg(unsigned char code, unsigned int val);
 void putint16(unsigned int c);
-void SendLong(long num);
-void NewLine(void);
+void putstr(const char* s);
 
-unsigned char UART_GetLastByte(void);
+
+// -------- uart packet protocol ----------
 
 // reading packet
 uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length);
@@ -136,6 +136,7 @@ uint16_t get_word();
 void start_packet(uint8_t type);
 void put_byte(uint8_t b);
 void put_word(uint16_t w);
+#define put_byte_word(b,w) put_byte(b); put_word(w);
 void end_packet();
 
 #endif	/* UART_H */

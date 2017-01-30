@@ -6,7 +6,7 @@ src := \
 	src/uart.c \
 	src/init.c \
 	src/pwm.c \
-	src/regulacija.c \
+	src/regulator.c \
 
 
 obj := $(patsubst %.c,%.o,$(src))

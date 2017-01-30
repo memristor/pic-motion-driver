@@ -3,8 +3,8 @@
 #include <libpic30.h>
 
 static volatile uint8_t rx_buf[RX_BUF_LEN];
-static volatile uint8_t rx_index1 = 0;
-static volatile uint8_t rx_index2 = 0;
+static volatile uint8_t rx_index1 = 0; // new data is put at this offset
+static volatile uint8_t rx_index2 = 0; // data is read from this offset
 static volatile uint8_t rxData;
 static volatile uint8_t rxCounter = 0;
 
@@ -208,19 +208,9 @@ void WriteUART1(unsigned int data)
 	else
 		U1TXREG = data & 0xFF;
 }
-/*
-   unsigned char getch()
-   {
-   U1STAbits.OERR=0;		//skrnavac usrani mora rucno da se resetuje
-   while (!DataRdyUART1());	//ceka da stigne karakter preko serijskog porta
-   return (unsigned char)(ReadUART1() & 0x00ff);
-   }
-   */
 
 void putch(unsigned char c)
 {
-	//while(BusyUART1());
-	//WriteUART1(c);
 	while(U1STAbits.UTXBF);
 	U1TXREG = c;
 }
@@ -237,9 +227,9 @@ void putint16(unsigned int s) {
 
 unsigned int getint16(void) {
 	unsigned int ret;
+	
 	while(rxCounter < 2);
-	//while(rx_index1 == rx_index2);	//wait for character to be received
-	SRbits.IPL = 7;
+	
 	if(++rx_index2 == RX_BUF_LEN)
 		rx_index2 = 0;
 	
@@ -250,76 +240,12 @@ unsigned int getint16(void) {
 		
 	ret |= rx_buf[rx_index2];
 	
+	SRbits.IPL = 7;
 	rxCounter-=2;
 	SRbits.IPL = 0;
 	return ret;
 }
 
-void dbg(unsigned char code, unsigned int val) {
-	putch(code);
-	putint16(val);
-}
-
-
-// send long as decimal value (useless)
-void SendLong(long num)
-{
-	unsigned char c1, c10, c100, c1000, c10000, c100000;
-
-	if(num < 0)
-	{
-		while(BusyUART1());
-		WriteUART1('-');
-		num = -num;
-	}
-	else
-	{
-		while(BusyUART1());
-		WriteUART1('+');
-	}
-
-	c1 = num % 10;
-	num = num / 10;
-
-	c10 = num % 10;
-	num = num / 10;
-
-	c100 = num % 10;
-	num = num / 10;
-
-	c1000 = num % 10;
-	num = num / 10;
-
-	c10000 = num % 10;
-	num = num / 10;
-
-	c100000 = num % 10;
-	num = num / 10;
-
-	while(BusyUART1());
-	WriteUART1('0' + c100000);
-
-	while(BusyUART1());
-	WriteUART1('0' + c10000);
-
-	while(BusyUART1());
-	WriteUART1('0' + c1000);
-
-	while(BusyUART1());
-	WriteUART1('0' + c100);
-
-	while(BusyUART1());
-	WriteUART1('0' + c10);
-
-	while(BusyUART1());
-	WriteUART1('0' + c1);
-}
-
-void NewLine(void)
-{
-	putch('\r');
-	putch('\n');
-}
 static unsigned char status;
 
 void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
@@ -348,7 +274,10 @@ void putstr(const char* s) {
 }
 
 void flush(void) {
-	
+	SRbits.IPL = 7;
+	rxCounter = 0;
+	rx_index2 = rx_index1;
+	SRbits.IPL = 0;
 }
 
 unsigned char getch(void)
@@ -417,7 +346,6 @@ static uint8_t rx_pkt_read_cursor;
 uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 	uint8_t read = 0;
 	uint8_t pass = 0;
-	// printf("rxCounter: %d\n", rxCounter);
 	if(rx_pkt_wait_for_data == 0) {
 		while(rxCounter - read >= PACKET_HEADER) {
 			
@@ -488,6 +416,7 @@ uint16_t get_word() {
 	}	
 }
 
+// TODO: use pkt_buf double buffer (buffer flipping) to allow use from interrupt
 static uint8_t pkt_buf[MAX_PKT_SIZE];
 static uint8_t pkt_size = 0;
 
@@ -503,6 +432,8 @@ void put_word(uint16_t w) {
 	pkt_buf[pkt_size+1] = w;
 	pkt_size+=2;
 }
+
+
 void end_packet() {
 	pkt_buf[0] = PACKET_SYNC;
 	uint8_t payload_size = pkt_size-PACKET_HEADER;
@@ -515,8 +446,11 @@ void end_packet() {
 	
 	pkt_buf[1] = ((payload_size + pkt_buf[2]) << 4) | (pkt_buf[1] & 0xf);
 	
+	// atomicly send packet
+	SRbits.IPL = 7;
 	for(i=0; i < pkt_size; i++) {
 		while(U1STAbits.UTXBF);
 		U1TXREG = pkt_buf[i];
 	}
+	SRbits.IPL = 0;
 }
