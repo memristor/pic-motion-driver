@@ -14,6 +14,6 @@ Use `mplab_ipe` located by default at: `/opt/microchip/mplabx/v3.50/mplab_ipe/mp
 
 ## Getting started
 ### Arch (yaourt)
-- Install required tools sudo yaourt -S microchip-mplabx-bin microchip-mplabxc16-bin
-- Compile make
-- Run mplab_ipe to upload .hex
+- Install required tools `sudo yaourt -S microchip-mplabx-bin microchip-mplabxc16-bin`
+- Compile `make`
+- Run `mplab_ipe` to upload .hex
