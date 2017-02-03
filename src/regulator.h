@@ -40,16 +40,29 @@
 #define OK 1
 //
 
-// stuck detection variables
-#define STUCK_DISTANCE_JUMP_ERROR_THRESHOLD 15
-#define STUCK_ROTATION_JUMP_ERROR_THRESHOLD 15
 
-#define STUCK_DISTANCE_MAX_FAIL_COUNT 5
-#define STUCK_ROTATION_MAX_FAIL_COUNT 5
+// unit conversions
+#define MILIMETER_TO_DOUBLED_INC(x) 	(((long long)(x) >> 1)*K2)
+#define MILIMETER_TO_INC(x) 			((long)(x)*K2)
+#define INC_TO_MILIMETER(x) 			((x) / K2)
+#define DOUBLED_INC_TO_MILIMETER(x) 	(((x) / 2) / K2)
+#define DEG_TO_INC_ANGLE(x) 			((x)*K1/360)
+#define INC_TO_DEG_ANGLE(x) 			((x)*360/K1)
+#define RAD_TO_INC_ANGLE(x) 			((x)/(2.0*PI)*K1)
+#define RAD_TO_DEG_ANGLE(x) 			((x)*180.0/PI)
+
+
+
+// stuck detection variables
+#define STUCK_DISTANCE_JUMP_ERROR_THRESHOLD MILIMETER_TO_INC(5000)
+#define STUCK_ROTATION_JUMP_ERROR_THRESHOLD DEG_TO_INC_ANGLE(50)
+
+#define STUCK_DISTANCE_MAX_FAIL_COUNT 200
+#define STUCK_ROTATION_MAX_FAIL_COUNT 200
 
 // keep as rational number
-#define STUCK_DISTANCE_ERROR_RATIO 1/2
-#define STUCK_ROTATION_ERROR_RATIO 1/2
+#define STUCK_DISTANCE_ERROR_RATIO 1/8
+#define STUCK_ROTATION_ERROR_RATIO 1/8
 //
 
 // --- regulator PD (proportional, differential) components, trial & error ---
@@ -68,15 +81,6 @@
 // ----------------------------------------------------------------------------
 
 
-// unit conversions
-#define MILIMETER_TO_DOUBLED_INC(x) 	(((long long)(x) >> 1)*K2)
-#define MILIMETER_TO_INC(x) 			((long)(x)*K2)
-#define INC_TO_MILIMETER(x) 			((x) / K2)
-#define DOUBLED_INC_TO_MILIMETER(x) 	(((x) / 2) / K2)
-#define DEG_TO_INC_ANGLE(x) 			((x)*K1/360)
-#define INC_TO_DEG_ANGLE(x) 			((x)*360/K1)
-#define RAD_TO_INC_ANGLE(x) 			((x)/(2.0*PI)*K1)
-#define RAD_TO_DEG_ANGLE(x) 			((x)*180.0/PI)
 
 
 // control flags
@@ -84,6 +88,8 @@
 #define CONTROL_FLAG_NO_DISTANCE_REGULATOR 2
 #define CONTROL_FLAG_NO_ROTATION_REGULATOR 4
 #define CONTROL_FLAG_NO_STUCK 8
+#define CONTROL_FLAG_STUCKED 16
+#define CONTROL_FLAG_NO_STATUS_CHANGE_REPORT 32
 
 enum State
 {
@@ -97,6 +103,7 @@ enum State
 void set_control_flags(uint8_t flags);
 
 void reset_driver(void);
+void reset_stuck();
 
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction);
 void forward(int duzina, unsigned char end_speed);
@@ -112,6 +119,7 @@ void set_rotation_speed(unsigned char max_speed, unsigned char max_accel);
 void set_position(int X, int Y, int orientation);
 
 void send_status_and_position(void);
+void report_status();
 enum State get_status(void);
 void force_status(enum State);
 void set_status_update_interval(int miliseconds);

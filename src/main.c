@@ -68,12 +68,16 @@ int main(void)
 		uint8_t packet_length;
 		if(!try_read_packet((uint8_t*)&command, &packet_length)) continue;
 		
+		reset_stuck();
 		switch(command)
 		{
 			// set position and orientation
 			case 'I':
 				// x [mm], y [mm], orientation
-				set_position(get_word(), get_word(), get_word());
+				tmpX = get_word();
+				tmpY = get_word();
+				tmpO = get_word();
+				set_position(tmpX, tmpY, tmpO);
 				break;
 				
 			case 'c':
@@ -94,10 +98,12 @@ int main(void)
 				set_speed(get_byte());
 				break;
 
-			case 'r':
-				set_rotation_speed(get_byte(), get_byte());
+			case 'r': {
+				uint8_t max_speed = get_byte(); 
+				uint8_t max_accel = get_byte(); 
+				set_rotation_speed(max_speed, max_accel);
 				break;
-				
+			}
 				
 				// move forward [mm]
 			case 'D':
@@ -191,6 +197,8 @@ int main(void)
 				force_status(STATUS_ERROR);
 				break;
 		}
+		
+		report_status();
 	}
 
 	return 0;

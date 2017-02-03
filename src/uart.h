@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#define RX_BUF_LEN  32
+#define RX_BUF_LEN  100
 #define RX_BUF_MASK  0x0f
 
 #ifndef FCY

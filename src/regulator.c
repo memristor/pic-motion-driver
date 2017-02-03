@@ -8,17 +8,6 @@
 #include <libpic30.h>
 #include <math.h>
 
-// stuck check
-// TODO: remove (replaced with general stuck condition)
-/*
-static int stuck_off=0;
-static const int stuck_wait1 = 600, stuck_wait2 = 200;
-static long prev_orientation = 0;
-static long prev_positionL, prev_positionR;
-static unsigned char speedL = 0x80;
-*/
-//
-
 
 static float vmax, accel;
 
@@ -48,6 +37,8 @@ static long prev_orientation = 0;
 static long prev_L = 0;
 static int t_ref_fail_count = 0;
 static int d_ref_fail_count = 0;
+static volatile long prev_rotation_error = 0;
+static volatile long prev_distance_error = 0;
 //
 
 static volatile long keep_rotation = 0, keep_speed = 0, keep_count = 0;
@@ -59,11 +50,26 @@ static int16_t send_status_interval;
 #define K1_p ((long)K1)
 
 
-static uint8_t control_flags = 0xff & ~CONTROL_FLAG_NO_STUCK;
+// static uint8_t control_flags = 0xff & ~CONTROL_FLAG_NO_STUCK & ~CONTROL_FLAG_NO_STATUS_CHANGE_REPORT;
+static uint8_t control_flags = 0;
 
 static enum State current_status = STATUS_IDLE;
+static enum State last_status = STATUS_IDLE;
 
 // ---------------- HELPER FUNCTIONS ------------
+
+void reset_stuck() {
+	prev_orientation = orientation;
+	prev_L = L;
+	t_ref_fail_count = 0;
+	d_ref_fail_count = 0;
+	prev_rotation_error = 0;
+	prev_distance_error = 0;
+	if(control_flags & CONTROL_FLAG_STUCKED) {
+		control_flags &= ~CONTROL_FLAG_NO_DISTANCE_REGULATOR & ~CONTROL_FLAG_NO_ROTATION_REGULATOR &
+			~CONTROL_FLAG_STUCKED;
+	}
+}
 
 static inline void left_pwm(unsigned int PWM)
 {
@@ -88,7 +94,7 @@ inline long long clipll(long long a, long long b, long long value) {
 	return value;
 }
 
-int angle_range_fix(int angle) {
+int deg_angle_range_fix(int angle) {
 	while(angle > 180)
 		angle -= 360;
 	while(angle < -180)
@@ -187,6 +193,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	
 	static signed long regulator_distance, regulator_rotation;
 	
+	
 	static long error;
 	static volatile float x, y;
 	static volatile float d;
@@ -247,36 +254,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 
 	d = vR + vL;
 	
-	// TODO: check if sin_cos function works well, and use it instead of this bloat
-	// sin_cos(theta, &cost, &sint);
-	if(theta < SINUS_MAX)
-	{
-		theta = theta;
-		sint = sinus[theta];
-		cost = sinus[SINUS_MAX-1 - theta];
-	}
-	else 
-	{
-		if(theta < 2*SINUS_MAX) // drugi kvadrant
-		{
-			theta = theta - SINUS_MAX;
-			sint = sinus[SINUS_MAX-1 - theta];
-			cost = -sinus[theta];
-		}
-		else
-			if(theta < 3*SINUS_MAX) // treci kvadrant
-			{
-				theta = theta - 2*SINUS_MAX;
-				sint = -sinus[theta];
-				cost = -sinus[SINUS_MAX-1 - theta];
-			}
-			else    // 4. kvadrant
-			{
-				theta = theta - 3*SINUS_MAX;
-				sint = -sinus[SINUS_MAX-1 - theta];
-				cost = sinus[theta];
-			}
-	}
+	sin_cos(theta, &sint, &cost);
 	
 	x = d * cost;
 	y = d * sint;
@@ -284,7 +262,6 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	Xlong += (x/SINUS_AMPLITUDE);
 	Ylong += (y/SINUS_AMPLITUDE);
 
-	// TODO: check if correct
 	X = DOUBLED_INC_TO_MILIMETER(Xlong);
 	Y = DOUBLED_INC_TO_MILIMETER(Ylong);
 
@@ -307,10 +284,13 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 
 	// stuck detection for distance
 	if( !(control_flags & CONTROL_FLAG_NO_STUCK) ) {
-		if(absl(error) > STUCK_DISTANCE_JUMP_ERROR_THRESHOLD) {
+		
+		if(absl(error-prev_distance_error) > STUCK_DISTANCE_JUMP_ERROR_THRESHOLD) {
 			current_status = STATUS_STUCK;
 		}
-		if(absl(L - prev_L) < absl(error) * STUCK_DISTANCE_ERROR_RATIO) {
+		
+		
+		if(absl(error) > MILIMETER_TO_INC(20) && absl(current_speed) < 1) {
 			if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				d_ref_fail_count = 0;
@@ -318,7 +298,19 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		} else {
 			d_ref_fail_count = 0;
 		}
+		
+		
+		// if(absl(error) > MILIMETER_TO_INC(20) && absl(L - prev_L) < absl(error) * STUCK_DISTANCE_ERROR_RATIO) {
+			// if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
+				// current_status = STATUS_STUCK;
+				// d_ref_fail_count = 0;
+			// }
+		// } else {
+			// d_ref_fail_count = 0;
+		// }
+		
 	}
+	prev_distance_error = error;
 	//
 
 	// ------------ rotation regulator -------------
@@ -335,13 +327,23 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	regulator_rotation = error * Gp_T - angular_speed * Gd_T; // PD (proportional, differential) regulator
 	
 	// stuck detection for rotation
-	
-	
 	if( !(control_flags & CONTROL_FLAG_NO_STUCK) ) {
-		if(absl(error) > STUCK_ROTATION_JUMP_ERROR_THRESHOLD) {
+		
+		if(absl(error-prev_rotation_error) > STUCK_ROTATION_JUMP_ERROR_THRESHOLD) {
 			current_status = STATUS_STUCK;
 		}
-		if(absl(orientation - prev_orientation) < absl(error) * STUCK_ROTATION_ERROR_RATIO) {
+		
+		
+		// if(absl(error) > DEG_TO_INC_ANGLE(10) && absl(orientation - prev_orientation) < absl(error) * STUCK_ROTATION_ERROR_RATIO) {
+			// if(++t_ref_fail_count > STUCK_ROTATION_MAX_FAIL_COUNT) {
+				// current_status = STATUS_STUCK;
+				// t_ref_fail_count = 0;
+			// }
+		// } else {
+			// t_ref_fail_count = 0;
+		// }
+		
+		if(absl(error) > DEG_TO_INC_ANGLE(10) && absl(angular_speed) < DEG_TO_INC_ANGLE(0.5)) {
 			if(++t_ref_fail_count > STUCK_ROTATION_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				t_ref_fail_count = 0;
@@ -350,12 +352,18 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			t_ref_fail_count = 0;
 		}
 		
+		
 		// if robot stuck, then shut down engines
 		if(current_status == STATUS_STUCK) {
 			control_flags |= CONTROL_FLAG_NO_DISTANCE_REGULATOR | CONTROL_FLAG_NO_ROTATION_REGULATOR;
+			control_flags |= CONTROL_FLAG_STUCKED;
 		}
 	}
+	prev_rotation_error = error;
 	//
+	
+	
+	
 	
 	prev_orientation = orientation;
 	prev_L = L;
@@ -374,7 +382,6 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	PWML = regulator_distance - regulator_rotation;
 	PWMD = regulator_distance + regulator_rotation;
 
-	// TODO: check if correct
 	PWMD = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWMD);
 	PWML = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWML);
 
@@ -427,7 +434,7 @@ static void setX(int tmp)
 	Xlong = (long long)tmp * 2 * K2;
 	d_ref = L;
 	t_ref = orientation;
-
+	reset_stuck();
 	wait_for_regulator();
 }
 
@@ -436,7 +443,7 @@ static void setY(int tmp)
 	Ylong = (long long)tmp * 2 * K2;
 	d_ref = L;
 	t_ref = orientation;
-
+	reset_stuck();
 	wait_for_regulator();
 }
 
@@ -451,6 +458,7 @@ static void setO(int tmp)
 
 	d_ref = L;
 	t_ref = orientation;
+	reset_stuck();
 
 	wait_for_regulator();
 }
@@ -499,7 +507,15 @@ void force_status(enum State newStatus)
 }
 
 void start_command() {
-	keep_count = 1;
+	keep_count = 0;
+}
+
+void report_status() {
+	if( !(control_flags & CONTROL_FLAG_NO_STATUS_CHANGE_REPORT) && current_status != last_status ) {
+		send_status_counter = 0;
+		send_status_and_position();
+		last_status = current_status;
+	}
 }
 
 /*
@@ -510,13 +526,17 @@ static char get_command(void)
 {
 	// should be called every 1ms, otherwise interval is not in [ms] unit
 	static unsigned long time;
+	
+	report_status();
+	
 	if(send_status_interval > 0 && time != sys_time) {
-		if(--send_status_counter <= 0) {
-			send_status_counter = send_status_interval;
+		if(++send_status_counter > send_status_interval) {
+			send_status_counter = 0;
 			send_status_and_position();
 		}
 		time = sys_time;
 	}
+	
 	
 	if(current_status == STATUS_STUCK) return ERROR;
 	
@@ -572,7 +592,7 @@ static char get_command(void)
 			
 			// break current command, status remains for 5ms
 			case 'i':
-				keep_count = 5;
+				keep_count = 100;
 				keep_speed = current_speed;
 				keep_rotation = angular_speed;
 				return BREAK;
@@ -586,87 +606,6 @@ static char get_command(void)
 
 	return OK;
 }
-
-
-// ------------- STUCK CHECK -----------------
-// TODO: remove (replaced with general stuck condition)
-/*
-static char check_stuck_condition(void)
-{
-	static int stuck=0;
-	static unsigned long prev_sys_time=0;
-	
-	// every 10ms
-	if((sys_time-prev_sys_time)>=10)
-	{
-		if((absl((long)positionL - prev_positionL) < (15+speedL*0.75) ) || (absl((long)positionR - prev_positionR) < (15+speedL*0.75) )) 
-		{
-			if(!stuck_off)
-				stuck++;
-				
-			if(stuck == 5)
-			{
-				stuck=0;
-				d_ref = L;
-				t_ref = orientation;
-				stop();
-				current_status = STATUS_STUCK;
-				__delay_ms(50);
-				return STATUS_STUCK;
-			} 
-		}
-		else
-		{
-			stuck = 0;
-			prev_positionL = positionL;
-			prev_positionR = positionR;
-		}
-		prev_sys_time=sys_time;
-	}
-
-	return OK;
-}
-
-static char check_stuck_condition_angle(void)
-{
-	static int stuck=0;
-	static unsigned long prev_sys_time=0;
-	
-	// every 10ms
-	if( sys_time - prev_sys_time >= 10 )
-	{
-		if( absl((long)orientation-prev_orientation) < 20+1.4*speedL)
-		{
-			if(!stuck_off)
-				stuck++;
-				
-			if(stuck == 5)
-			{
-				stuck=0;
-				d_ref = L;
-				t_ref = orientation;
-				stop();
-				current_status = STATUS_STUCK;
-				__delay_ms(50);
-				return STATUS_STUCK;
-			}
-		}
-		else
-		{
-			// not stuck
-			stuck = 0;
-			
-			// save current position
-			prev_orientation = orientation;
-			prev_positionL = positionL;
-			prev_positionR = positionR;
-		}
-		prev_sys_time=sys_time;
-	}
-	return OK;
-}
-*/
-// ------------------------------------------------------------
 
 // turn to point and move to it (Xd, Yd)
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
@@ -692,7 +631,7 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 	if(direction < 0)
 		angle += 180;
 	
-	angle = angle_range_fix(angle);
+	angle = deg_angle_range_fix(angle);
 
 	if(turn(angle) == ERROR)
 		return;
@@ -755,14 +694,6 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 			return;
 		}
 		
-		/*
-		// TODO: remove (replaced with general stuck condition)
-		if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )
-		{
-			if (check_stuck_condition() == STATUS_STUCK)
-				return;
-		}
-		*/
 		
 		if(t <= t2) // refresh angle reference
 		{
@@ -847,15 +778,6 @@ void forward(int length, unsigned char end_speed)
 		
 		if(get_command() == ERROR)
 			return;
-
-		/*
-		// TODO: remove (replaced with general stuck condition)
-		if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )   
-		{
-			if (check_stuck_condition() == STATUS_STUCK)
-				return;
-		}
-		*/
 		
 		if(t <= t1)
 		{
@@ -881,7 +803,7 @@ void forward(int length, unsigned char end_speed)
 void rotate_absolute_angle(int ugao)
 {
 	int tmp = ugao - orientation * 360 / K1;
-	tmp = angle_range_fix(tmp);
+	tmp = deg_angle_range_fix(tmp);
 	turn(tmp);
 }
 
@@ -926,14 +848,6 @@ char turn(int ugao)
 			if(get_command() == ERROR)
 				return ERROR;
 
-			/*
-			// TODO: remove (replaced with general stuck condition)
-			if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )
-			{
-				if (check_stuck_condition_angle() == STATUS_STUCK)
-					return ERROR;
-			}
-			*/
 			
 			if(t <= t1)
 			{
@@ -985,12 +899,12 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	direction = (direction >= 0 ? 1 : -1);
 
 	angle = (angle + direction * sign * 90) % 360;
-	angle = angle_range_fix(angle);
+	angle = deg_angle_range_fix(angle);
 
 	angle -= orientation * 360 / K1;
 	angle %= 360;
 
-	angle = angle_range_fix(angle);
+	angle = deg_angle_range_fix(angle);
 	
 	if(turn(angle))
 		return;
@@ -1033,17 +947,6 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			return;
 		}
 
-		/*
-		// TODO: remove (replaced with general stuck condition)
-		if( t > (t0+stuck_wait1) && t < (t3-stuck_wait2) )
-		{
-			if(check_stuck_condition() == STATUS_STUCK)
-			{
-				set_speed_accel(v_poc);
-				return;
-			}
-		}
-		*/
 
 		if(t <= t1)
 		{
@@ -1109,7 +1012,18 @@ void set_control_flags(uint8_t flags) {
 	direction:
 		0 - pick smallest rotation
 		1 - forward
-		-1 - backward
+	   -1 - backward
+	
+	v=wr => r = v/w
+	
+	v = v - a*t^2/2
+	w = w + alpha*t^2/2
+	(v-a*t^2/2)/(w+alpha*t^2/2) = r1
+	(v-a*t^2/2) = r1*(w+alpha*t^2/2)
+	v-r1*w = (r1*alpha+a)*t^2/2
+	t = sqrt( 2*(v-r1*w) / (r1*alpha+a) )
+	
+	
 */
 void move_to(long x, long y, char direction) {
 	float speed = current_speed;
@@ -1184,7 +1098,7 @@ void move_to(long x, long y, char direction) {
 			if(speed < vmax) {
 				speed = maxf( min_speed, speed+accel );
 			}
-		} else if(dist > 1.0f && dist <= 200.0f) {
+		} else if(dist > 1.0f && dist <= 50.0f) {
 			speed = maxf( min_speed, speed-accel );
 		} else if(dist < 1.0f) {
 			d_ref = L;

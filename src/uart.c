@@ -349,6 +349,7 @@ uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 	if(rx_pkt_wait_for_data == 0) {
 		while(rxCounter - read >= PACKET_HEADER) {
 			
+			read++;
 			// if found packet_sync
 			if(rx_get() == PACKET_SYNC ) {
 				rx_pkt_checksum = rx_get();
@@ -359,18 +360,16 @@ uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 				// check header checksum
 				if( (rx_pkt_checksum >> 4) == ((rx_pkt_type+rx_pkt_len) & 0xf) ) {
 					rx_pkt_wait_for_data = 1;
-					read++;
 					break;
 				}
 			}
-			read++;
 		}
 	}
 	
 	if(rx_pkt_wait_for_data == 1 && rxCounter-read >= rx_pkt_len) {
 		// check content checksum
 		uint8_t c = 0;
-					
+		
 		// checksum calculate for all data
 		uint8_t i;
 		for(i=0; i < rx_pkt_len; i++) {
@@ -379,7 +378,7 @@ uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 		}
 		
 		// if checksum pass
-		if( ((rx_pkt_checksum ^ c) & 0xf) == 0 ) {
+		if( (rx_pkt_checksum & 0xf) == (c & 0xf) ) {
 			*pkt_type = rx_pkt_type;
 			*length = rx_pkt_len;
 			pass = 1;
@@ -390,8 +389,12 @@ uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 	}
 	
 	SRbits.IPL = 7;
-	rxCounter -= read;
+	if(rxCounter >= read)
+		rxCounter -= read;
+	else
+		rxCounter = 0;
 	SRbits.IPL = 0;
+	
 	
 	if(pass) {
 		rx_pkt_read_cursor = 0;
@@ -407,13 +410,13 @@ uint8_t get_byte() {
 		return 0;
 }
 uint16_t get_word() {
-	if(rx_pkt_read_cursor+2 < rx_pkt_len) {
-		uint16_t r = (rx_pkt_buf[rx_pkt_read_cursor] << 8) | rx_pkt_buf[rx_pkt_read_cursor+1];
+	if(rx_pkt_read_cursor+1 < rx_pkt_len) {
+		uint16_t r = ((uint16_t)rx_pkt_buf[rx_pkt_read_cursor] << 8) | rx_pkt_buf[rx_pkt_read_cursor+1];
 		rx_pkt_read_cursor += 2;
 		return r;
 	} else {
 		return 0;
-	}	
+	}
 }
 
 static uint8_t pkt_buf[MAX_PKT_SIZE];
