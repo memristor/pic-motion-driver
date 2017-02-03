@@ -289,8 +289,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		
-		if(absl(error) > MILIMETER_TO_INC(20) && absl(current_speed) < 1) {
+		if(absl(error) > MILIMETER_TO_INC(20) && absl(current_speed) < 3) {
 			if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				d_ref_fail_count = 0;
@@ -298,16 +297,6 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		} else {
 			d_ref_fail_count = 0;
 		}
-		
-		
-		// if(absl(error) > MILIMETER_TO_INC(20) && absl(L - prev_L) < absl(error) * STUCK_DISTANCE_ERROR_RATIO) {
-			// if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
-				// current_status = STATUS_STUCK;
-				// d_ref_fail_count = 0;
-			// }
-		// } else {
-			// d_ref_fail_count = 0;
-		// }
 		
 	}
 	prev_distance_error = error;
@@ -333,17 +322,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		
-		// if(absl(error) > DEG_TO_INC_ANGLE(10) && absl(orientation - prev_orientation) < absl(error) * STUCK_ROTATION_ERROR_RATIO) {
-			// if(++t_ref_fail_count > STUCK_ROTATION_MAX_FAIL_COUNT) {
-				// current_status = STATUS_STUCK;
-				// t_ref_fail_count = 0;
-			// }
-		// } else {
-			// t_ref_fail_count = 0;
-		// }
-		
-		if(absl(error) > DEG_TO_INC_ANGLE(10) && absl(angular_speed) < DEG_TO_INC_ANGLE(0.5)) {
+		if(absl(error) > DEG_TO_INC_ANGLE(20) && absl(angular_speed) < DEG_TO_INC_ANGLE(1)) {
 			if(++t_ref_fail_count > STUCK_ROTATION_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				t_ref_fail_count = 0;
@@ -351,6 +330,8 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		} else {
 			t_ref_fail_count = 0;
 		}
+		
+		
 		
 		
 		// if robot stuck, then shut down engines
@@ -362,11 +343,6 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	prev_rotation_error = error;
 	//
 	
-	
-	
-	
-	prev_orientation = orientation;
-	prev_L = L;
 	
 	
 	if(control_flags & CONTROL_FLAG_NO_DISTANCE_REGULATOR) {
@@ -1162,7 +1138,6 @@ void set_rotation_speed(unsigned char max_speed, unsigned char max_accel) {
 
 void set_speed(unsigned char tmp)
 {
-	// speedL = tmp;
 	set_speed_accel(VMAX * (unsigned char)tmp / 256);
 }
 
