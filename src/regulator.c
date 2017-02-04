@@ -289,7 +289,15 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		if(absl(error) > MILIMETER_TO_INC(20) && absl(current_speed) < 3) {
+		// if(absl(error) > MILIMETER_TO_INC(20) && absl(current_speed) < 3) {
+			// if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
+				// current_status = STATUS_STUCK;
+				// d_ref_fail_count = 0;
+			// }
+		// } else {
+			// d_ref_fail_count = 0;
+		// }
+		if((signl(error) != signl(current_speed) && absl(current_speed) > 6) || (absl(regulator_distance) > PWM_MAX_SPEED/4 && absl(current_speed) < 3)) {
 			if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				d_ref_fail_count = 0;
@@ -333,10 +341,10 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		
 		
 		
-		
 		// if robot stuck, then shut down engines
 		if(current_status == STATUS_STUCK) {
 			control_flags |= CONTROL_FLAG_NO_DISTANCE_REGULATOR | CONTROL_FLAG_NO_ROTATION_REGULATOR;
+			CloseMCPWM();
 			control_flags |= CONTROL_FLAG_STUCKED;
 		}
 	}
