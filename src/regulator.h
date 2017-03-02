@@ -42,7 +42,7 @@
 
 
 // unit conversions
-#define MILIMETER_TO_DOUBLED_INC(x) 	(((long long)(x) >> 1)*K2)
+#define MILIMETER_TO_DOUBLED_INC(x) 	(((long long)(x) << 1)*K2)
 #define MILIMETER_TO_INC(x) 			((long)(x)*K2)
 #define INC_TO_MILIMETER(x) 			((x) / K2)
 #define DOUBLED_INC_TO_MILIMETER(x) 	(((x) / 2) / K2)
@@ -55,7 +55,7 @@
 
 // stuck detection variables
 #define STUCK_DISTANCE_JUMP_ERROR_THRESHOLD MILIMETER_TO_INC(400)
-#define STUCK_ROTATION_JUMP_ERROR_THRESHOLD DEG_TO_INC_ANGLE(50)
+#define STUCK_ROTATION_JUMP_ERROR_THRESHOLD DEG_TO_INC_ANGLE(60)
 
 #define STUCK_DISTANCE_MAX_FAIL_COUNT 200
 #define STUCK_ROTATION_MAX_FAIL_COUNT 200
@@ -106,7 +106,7 @@ void reset_driver(void);
 void reset_stuck();
 
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction);
-void forward(int duzina, unsigned char end_speed);
+void forward(int length, unsigned char end_speed);
 void rotate_absolute_angle(int angle);
 char turn(int angle);
 void arc(long Xc, long Yc, int Fi, char direction_angle, char direction);

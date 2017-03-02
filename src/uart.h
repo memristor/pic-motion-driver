@@ -135,8 +135,8 @@ uint16_t get_word();
 
 // writing packet
 void start_packet(uint8_t type);
-void put_byte(uint8_t b);
-void put_word(uint16_t w);
+void put_byte(int8_t b);
+void put_word(int16_t w);
 #define put_byte_word(b,w) put_byte(b); put_word(w);
 void end_packet();
 

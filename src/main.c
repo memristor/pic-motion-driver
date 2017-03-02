@@ -134,6 +134,7 @@ int main(void)
 
 				// rotate to and then move to point (Xc, Yc, v, direction) [mm]
 			case 'G':
+				
 				tmpX = get_word();
 				tmpY = get_word();
 				v = get_byte();

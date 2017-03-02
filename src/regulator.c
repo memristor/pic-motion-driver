@@ -330,7 +330,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		if(absl(error) > DEG_TO_INC_ANGLE(20) && absl(angular_speed) < DEG_TO_INC_ANGLE(1)) {
+		if(absl(error) > DEG_TO_INC_ANGLE(30) && absl(angular_speed) < DEG_TO_INC_ANGLE(4)) {
 			if(++t_ref_fail_count > STUCK_ROTATION_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				t_ref_fail_count = 0;
@@ -461,7 +461,7 @@ void send_status_and_position(void)
 		put_byte(current_status);
 		put_word(X);
 		put_word(Y);
-		put_word(orientation * 360 / K1 + 0.5);
+		put_word(INC_TO_DEG_ANGLE(orientation));
 		put_word(current_speed);
 	end_packet();
 }
@@ -501,6 +501,16 @@ void report_status() {
 		last_status = current_status;
 	}
 }
+
+struct MoveCmdParams {
+	char active;
+	int x;
+	int y;
+	char direction;
+	int radius;
+};
+
+struct MoveCmdParams move_cmd_next;
 
 /*
 	read UART while moving
@@ -569,7 +579,22 @@ static char get_command(void)
 				// explicitly with control_flags operator
 				control_flags |= CONTROL_FLAG_NO_DISTANCE_REGULATOR | CONTROL_FLAG_NO_ROTATION_REGULATOR;
 				break;
-
+				
+			case 'N': {
+				int tmpX = get_word();
+				int tmpY = get_word();
+				char direction = get_byte();
+				int radius = get_word();
+				
+				move_cmd_next.active = 1;
+				move_cmd_next.x = tmpX;
+				move_cmd_next.y = tmpY;
+				move_cmd_next.direction = direction;
+				move_cmd_next.radius = radius;
+				
+				break;
+			}
+			
 			case 'V':
 				set_speed(get_byte());
 				break;
@@ -592,6 +617,7 @@ static char get_command(void)
 }
 
 // turn to point and move to it (Xd, Yd)
+
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 {
 	long t, t0, t1, t2, t3;
@@ -678,13 +704,13 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 			return;
 		}
 		
-		
 		if(t <= t2) // refresh angle reference
 		{
-			if(direction > 0)
-				t_ref = (atan2(Ydlong-Ylong, Xdlong-Xlong) / (2 * PI)) * K1;
-			else
-				t_ref = (atan2(Ylong-Ydlong, Xlong-Xdlong) / (2 * PI)) * K1;
+			if(direction > 0) {
+				t_ref = RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong));
+			} else {
+				t_ref = RAD_TO_INC_ANGLE(atan2(Ylong-Ydlong, Xlong-Xdlong));
+			}
 		}
 
 		if(t <= t1) // acceleration phase
@@ -862,7 +888,7 @@ char turn(int ugao)
 
 void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 {
-	float R, Fi_pocetno, delta, luk;
+	float R, Fi_start, delta, arc_value;
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
 	long Fi_total, Fi1;
@@ -878,8 +904,8 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	}
 	
 	R = get_distance_to(Xc, Yc);
-	Fi_pocetno = atan2(((int)Y-(int)Yc), ((int)X-(int)Xc));
-	angle = Fi_pocetno * 180 / PI;
+	Fi_start = atan2(((int)Y-(int)Yc), ((int)X-(int)Xc));
+	angle = Fi_start * 180 / PI;
 	direction = (direction >= 0 ? 1 : -1);
 
 	angle = (angle + direction * sign * 90) % 360;
@@ -937,9 +963,9 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			w_ref += alpha;
 			v_ref += accel;
 			delta = sign * (w_ref - alpha / 2);
-			luk = sign * delta * R / wheel_distance;
+			arc_value = sign * delta * R / wheel_distance;
 			ugao_ref += delta;
-			dist_ref += direction * luk;
+			dist_ref += direction * arc_value;
 			t_ref = ugao_ref;
 			d_ref = dist_ref;
 		}
@@ -948,9 +974,9 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			w_ref = omega;
 			v_ref = vmax;
 			delta = sign * omega;
-			luk = sign * delta * R / wheel_distance;
+			arc_value = sign * delta * R / wheel_distance;
 			ugao_ref += delta;
-			dist_ref += direction * luk;
+			dist_ref += direction * arc_value;
 			t_ref = ugao_ref;
 			d_ref = dist_ref;
 		}
@@ -959,9 +985,9 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			w_ref -= alpha;
 			v_ref -= accel;
 			delta = sign * (w_ref + alpha / 2);
-			luk = sign * delta * R / wheel_distance;
+			arc_value = sign * delta * R / wheel_distance;
 			ugao_ref += delta;
-			dist_ref += direction * luk;
+			dist_ref += direction * arc_value;
 			t_ref = ugao_ref;
 			d_ref = dist_ref;
 		}
@@ -997,17 +1023,6 @@ void set_control_flags(uint8_t flags) {
 		0 - pick smallest rotation
 		1 - forward
 	   -1 - backward
-	
-	v=wr => r = v/w
-	
-	v = v - a*t^2/2
-	w = w + alpha*t^2/2
-	(v-a*t^2/2)/(w+alpha*t^2/2) = r1
-	(v-a*t^2/2) = r1*(w+alpha*t^2/2)
-	v-r1*w = (r1*alpha+a)*t^2/2
-	t = sqrt( 2*(v-r1*w) / (r1*alpha+a) )
-	
-	
 */
 void move_to(long x, long y, char direction) {
 	float speed = current_speed;
@@ -1030,7 +1045,7 @@ void move_to(long x, long y, char direction) {
 	
 	if(direction == 0) {
 		// determine direction automatically
-		if(absl(angle_diff) > K1/4) {
+		if(absl(angle_diff) < K1/4) {
 			direction = 1;
 		} else {
 			direction = -1;
@@ -1107,6 +1122,99 @@ void move_to(long x, long y, char direction) {
 			end_packet();
 			
 			e = 0;
+		}
+		
+		D += direction * speed;
+		R += rotation_speed * signl(angle_diff);
+		
+		d_ref = D;
+		t_ref = R;
+	}
+}
+
+/*
+	plan:
+		standing position:
+			rotate up to 60 deg difference, form tangent line at circle which minimizes angle
+		moving position:
+			get current speed vector, form tangent line at circle which minimizes angle
+*/
+void move_to_new(long x, long y, char direction, int radius) {
+	float speed = current_speed;
+	float rotation_speed = angular_speed; /* [inc/ms] */
+	
+	long long int Xdlong, Ydlong;
+	
+	float dist = get_distance_to(x,y);
+	Ydlong = MILIMETER_TO_DOUBLED_INC(y);
+	Xdlong = MILIMETER_TO_DOUBLED_INC(x);
+	long goal_angle;
+	long angle_diff;
+	goal_angle = RAD_TO_INC_ANGLE(atan2(y-Y, x-X));
+	angle_diff = inc_angle_diff(goal_angle, orientation);
+	
+	if(direction > 0) direction = 1;
+	else if(direction < 0) direction = -1;
+	
+	if(direction == 0) {
+		// determine direction automatically
+		if(absl(angle_diff) < K1/4) {
+			direction = 1;
+		} else {
+			direction = -1;
+		}
+	}
+	
+	current_status = STATUS_MOVING;
+	
+	long D = d_ref;
+	long R = t_ref;
+	float min_speed = VMAX * 0x10 / 255;
+	
+	if(control_flags & CONTROL_FLAG_DEBUG) {
+		start_packet('d');
+			put_byte_word(0xff,0);
+		end_packet();
+	}
+	
+	start_command();
+	while(1)
+	{
+		if(get_command() == ERROR)
+			return;
+			
+		wait_for_regulator();
+		
+		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
+		long orient = orientation;
+		
+		if(direction == -1) {
+			orient = inc_angle_range_fix( orient + DEG_TO_INC_ANGLE( 180 ) );
+		}
+		
+		angle_diff = inc_angle_diff(goal_angle, orient);
+		
+		long abs_angle_diff = absl(angle_diff);
+		
+		if(abs_angle_diff > DEG_TO_INC_ANGLE(20)) {
+			rotation_speed = minf( rotation_speed + alpha/2, omega/2 );
+		} else if(abs_angle_diff > DEG_TO_INC_ANGLE(3)){
+			rotation_speed = maxf( rotation_speed - alpha/2, min_speed );
+		} else {
+			R = orientation;
+		}
+		
+		dist = get_distance_to(x,y);
+		
+		if(dist > 200.0f && abs_angle_diff < DEG_TO_INC_ANGLE(65)) {
+			if(speed < vmax) {
+				speed = maxf( min_speed, speed+accel );
+			}
+		} else if(dist > 1.0f && dist <= 50.0f) {
+			speed = maxf( min_speed, speed-accel );
+		} else if(dist < 1.0f) {
+			d_ref = L;
+			return;
 		}
 		
 		D += direction * speed;

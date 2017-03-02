@@ -398,6 +398,7 @@ uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 	
 	if(pass) {
 		rx_pkt_read_cursor = 0;
+		
 		return 1;
 	}
 	return 0;
@@ -426,10 +427,10 @@ void start_packet(uint8_t type) {
 	pkt_size = PACKET_HEADER;
 	pkt_buf[2] = type;
 }
-void put_byte(uint8_t b) {
+void put_byte(int8_t b) {
 	pkt_buf[pkt_size++] = b;
 }
-void put_word(uint16_t w) {
+void put_word(int16_t w) {
 	pkt_buf[pkt_size] = w >> 8;
 	pkt_buf[pkt_size+1] = w;
 	pkt_size+=2;
