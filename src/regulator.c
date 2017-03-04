@@ -1,5 +1,4 @@
 #include "regulator.h"
-#include "sinus.h"
 #include "uart.h"
 #include "pwm.h"
 #include "init.h"
@@ -7,7 +6,7 @@
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
 #include <math.h>
-
+#include "math.h"
 
 static float vmax, accel;
 
@@ -58,6 +57,20 @@ static enum State last_status = STATUS_IDLE;
 
 // ---------------- HELPER FUNCTIONS ------------
 
+long inc_angle_range_fix(long angle) {
+	while(angle > K1/2)
+		angle -= K1;
+	while(angle < -K1/2)
+		angle += K1;
+	return angle;
+}
+
+float get_distance_to(long x, long y) {
+	return sqrt((x-X)*(x-X) + (y-Y)*(y-Y));
+}
+
+// ------------------------------------------
+
 void reset_stuck() {
 	prev_orientation = orientation;
 	prev_L = L;
@@ -81,97 +94,7 @@ static inline void right_pwm(unsigned int PWM)
 	P1DC1 = PWM;
 }
 
-inline long absl(long a)
-{
-	return a >= 0 ? a : -a;
-}
 
-inline long long clipll(long long a, long long b, long long value) {
-	if(value <= a)
-		value = a;
-	else if(value > b)
-		value = b;
-	return value;
-}
-
-int deg_angle_range_fix(int angle) {
-	while(angle > 180)
-		angle -= 360;
-	while(angle < -180)
-		angle += 360;
-	return angle;
-}
-
-float rad_angle_range_fix(float angle) {
-	while(angle > PI)
-		angle -= 2*PI;
-	while(angle < -PI)
-		angle += 2*PI;
-	return angle;
-}
-
-long inc_angle_range_fix(long angle) {
-	while(angle > K1/2)
-		angle -= K1;
-	while(angle < -K1/2)
-		angle += K1;
-	return angle;
-}
-
-int sign(int x) {
-	return x >= 0L ? 1 : -1;
-}
-long signl(long x) {
-	return x >= 0L ? 1 : -1;
-}
-
-float minf(float a, float b) {
-	return a < b ? a : b;
-}
-float maxf(float a, float b) {
-	return a > b ? a : b;
-}
-long minl(long a, long b) {
-	return a < b ? a : b;
-}
-long maxl(long a, long b) {
-	return a > b ? a : b;
-}
-
-static float get_distance_to(long x, long y) {
-	return sqrt((x-X)*(x-X) + (y-Y)*(y-Y));
-}
-
-void sin_cos(long theta, long *sint, long *cost) {
-	if(theta < SINUS_MAX) // 1st quadrant
-	{
-		theta = theta;
-		*sint = sinus[theta];
-		*cost = sinus[SINUS_MAX-1 - theta];
-	}
-	else 
-	{
-		if(theta < 2*SINUS_MAX) // 2nd quadrant
-		{
-			theta = theta - SINUS_MAX;
-			*sint = sinus[SINUS_MAX-1 - theta];
-			*cost = -sinus[theta];
-		}
-		else
-			if(theta < 3*SINUS_MAX) // 3rd quadrant
-			{
-				theta = theta - 2*SINUS_MAX;
-				*sint = -sinus[theta];
-				*cost = -sinus[SINUS_MAX-1 - theta];
-			}
-			else    // 4th quadrant
-			{
-				theta = theta - 3*SINUS_MAX;
-				*sint = -sinus[SINUS_MAX-1 - theta];
-				*cost = sinus[theta];
-			}
-	}
-}
 
 // --------------------------------------------------------------
 
@@ -289,14 +212,6 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		// if(absl(error) > MILIMETER_TO_INC(20) && absl(current_speed) < 3) {
-			// if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
-				// current_status = STATUS_STUCK;
-				// d_ref_fail_count = 0;
-			// }
-		// } else {
-			// d_ref_fail_count = 0;
-		// }
 		if((signl(error) != signl(current_speed) && absl(current_speed) > 6) || (absl(regulator_distance) > PWM_MAX_SPEED/4 && absl(current_speed) < 3)) {
 			if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
@@ -338,8 +253,6 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		} else {
 			t_ref_fail_count = 0;
 		}
-		
-		
 		
 		// if robot stuck, then shut down engines
 		if(current_status == STATUS_STUCK) {
@@ -617,7 +530,6 @@ static char get_command(void)
 }
 
 // turn to point and move to it (Xd, Yd)
-
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 {
 	long t, t0, t1, t2, t3;
@@ -628,8 +540,8 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 	int length, angle;
 	long long int Xdlong, Ydlong;
 	
-	Xdlong = MILIMETER_TO_DOUBLED_INC(Xd);
-	Ydlong = MILIMETER_TO_DOUBLED_INC(Yd);
+	Xdlong = MILIMETER_TO_2INC(Xd);
+	Ydlong = MILIMETER_TO_2INC(Yd);
 
 	d_ref=L;
 	v0 = current_speed;
@@ -809,7 +721,6 @@ void forward(int length, unsigned char end_speed)
 	current_status = STATUS_IDLE;
 }
 
-// funkcija za dovodjenje robota u zeljenu apsolutnu orientaciju
 void rotate_absolute_angle(int ugao)
 {
 	int tmp = ugao - orientation * 360 / K1;
@@ -817,17 +728,17 @@ void rotate_absolute_angle(int ugao)
 	turn(tmp);
 }
 
-char turn(int ugao)
+char turn(int angle)
 {
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
 	long Fi_total, Fi1;
-	float ugao_ref, w_ref = 0;
+	float angle_ref, w_ref = 0;
 	char sign;
 
-	sign = (ugao >= 0 ? 1 : -1);
+	sign = (angle >= 0 ? 1 : -1);
 
-	Fi_total = (long)ugao * K1 / 360;
+	Fi_total = (long)angle * K1 / 360;
 
 	T1 = T3 = omega / alpha;
 	Fi1 = alpha * T1 * T1 / 2;
@@ -844,7 +755,7 @@ char turn(int ugao)
 		T2 = (sign * Fi_total - 2 * Fi1) / omega;
 	}
 
-	ugao_ref = t_ref;
+	angle_ref = t_ref;
 	t = t0 = sys_time;
 	t1 = t0 + T1;
 	t2 = t1 + T2;
@@ -862,20 +773,20 @@ char turn(int ugao)
 			if(t <= t1)
 			{
 				w_ref += alpha;
-				ugao_ref += sign * (w_ref - alpha / 2);
-				t_ref = ugao_ref;
+				angle_ref += sign * (w_ref - alpha / 2);
+				t_ref = angle_ref;
 			}
 			else if(t <= t2)
 			{
 				w_ref = omega;
-				ugao_ref += sign * omega;
-				t_ref = ugao_ref;
+				angle_ref += sign * omega;
+				t_ref = angle_ref;
 			}
 			else if(t <= t3)
 			{
 				w_ref -= alpha;
-				ugao_ref += sign * (w_ref + alpha / 2);
-				t_ref = ugao_ref;
+				angle_ref += sign * (w_ref + alpha / 2);
+				t_ref = angle_ref;
 			}
 		}
 	}
@@ -1005,14 +916,7 @@ long inc_angle_diff(long a, long b) {
 	return d;
 }
 
-int deg_angle_diff(int a, int b) {
-	long d = a - b;
-	if(d > 180)
-		d -= 360;
-	else if(d < -180)
-		d += 360;
-	return d;
-}
+
 
 void set_control_flags(uint8_t flags) {
 	control_flags = flags;
@@ -1033,8 +937,8 @@ void move_to(long x, long y, char direction) {
 	long long int Xdlong, Ydlong;
 	
 	float dist = get_distance_to(x,y);
-	Ydlong = MILIMETER_TO_DOUBLED_INC(y);
-	Xdlong = MILIMETER_TO_DOUBLED_INC(x);
+	Ydlong = MILIMETER_TO_2INC(y);
+	Xdlong = MILIMETER_TO_2INC(x);
 	long goal_angle;
 	long angle_diff;
 	goal_angle = RAD_TO_INC_ANGLE(atan2(y-Y, x-X));
@@ -1084,9 +988,9 @@ void move_to(long x, long y, char direction) {
 		long abs_angle_diff = absl(angle_diff);
 		
 		if(abs_angle_diff > DEG_TO_INC_ANGLE(20)) {
-			rotation_speed = minf( rotation_speed + alpha/2, omega/2 );
+			rotation_speed = minf( rotation_speed + alpha, omega/2 );
 		} else if(abs_angle_diff > DEG_TO_INC_ANGLE(3)){
-			rotation_speed = maxf( rotation_speed - alpha/2, min_speed );
+			rotation_speed = maxf( rotation_speed - alpha, min_speed );
 		} else {
 			R = orientation;
 		}
@@ -1095,7 +999,7 @@ void move_to(long x, long y, char direction) {
 		
 		if(dist > 200.0f && abs_angle_diff < DEG_TO_INC_ANGLE(65)) {
 			if(speed < vmax) {
-				speed = maxf( min_speed, speed+accel );
+				speed = maxf( min_speed, speed+accel/2 );
 			}
 		} else if(dist > 1.0f && dist <= 50.0f) {
 			speed = maxf( min_speed, speed-accel );
@@ -1138,16 +1042,217 @@ void move_to(long x, long y, char direction) {
 			rotate up to 60 deg difference, form tangent line at circle which minimizes angle
 		moving position:
 			get current speed vector, form tangent line at circle which minimizes angle
+			
+		r < R
+			v+
+				vtarget = r * w
+				v = min(v + accel, vtarget, vmax)
+			w-
+				if r ~ 0
+					wtarget = 999
+				else
+					wtarget = v / r
+				w = max(w - alpha, wtarget)
+		r > R
+			v-
+				vtarget = r * w
+				v = max(v - accel, vtarget, 0)
+			w+
+				if r ~ 0
+					wtarget = 999
+				else
+					wtarget = v / r
+				w = min(w + alpha, wtarget, omega)
+
+		r ~ R
+			start increasing speed to max while maintaining ratio
+			
+			choose order
+				if accel < alpha
+					v+, w+ follows
+				else
+					w+, v+ follows
+					
+			
+			v+
+				v = min(v + accel, vmax)
+			w+
+				if(r ~ 0)
+					wtarget = 999
+				else
+					wtarget = v / r
+				w = min(w + alpha, wtarget, omega)
+
+		-----------------------------------------------------
+		anglediff ~ 0 => new phase
+			v+
+				v = min(v + accel, vmax)
+			
+			w -> 0
+				w = max(w - alpha, 0)
+				
+
+			calc end speed
+				r_after = ...
+				vend = r_after * omega
+
+		-------
+		calc when (distance) to start slowing down
+			if it needs triangle profile
+				a*t = vmax => t = ?
+				d = a*t^2/2
+				if dist >= 2d
+					trapezoid
+						a*t = vmax-vend => t = ?
+						dist = a * t^2/2
+				else
+					triangle
+						d = dist / 2
+						
+				
+		--------------
+		calc r
+			r = R/2
+
 */
+
+
 void move_to_new(long x, long y, char direction, int radius) {
-	float speed = current_speed;
-	float rotation_speed = angular_speed; /* [inc/ms] */
+	
+	float v = current_speed; /* [inc/ms] */
+	float w = angular_speed; /* [inc/ms] */
 	
 	long long int Xdlong, Ydlong;
 	
+	/*
+	enum Phase {
+		Rotating_phase,
+		Moving_phase
+	};
+	
+	enum Phase phase = Rotating_phase;
+	*/
+	
+	long distance = d_ref;
+	long rotation = t_ref;
+	
+	int R = radius / 2;
+	
+	float vtarget;
+	float wtarget;
+	
+	float r = absf(v) / absf(w);
+	
+	while(1) {
+		
+		
+		r = absf(v) / absf(w);
+		if(r < R) {
+			/*
+			r < R
+				v+
+					vtarget = r * w
+					v = min(v + accel, vtarget, vmax)
+				w-
+					if r ~ 0
+						wtarget = 999
+					else
+						wtarget = v / r
+					w = max(w - alpha, wtarget)
+			*/
+			// v+
+			vtarget = v * w;
+			v = min3f(v+accel, vtarget, vmax);
+			
+			// w-
+			if(r == 0) {
+				wtarget = 999;
+			} else {
+				wtarget = v / w;
+			}
+			
+			w = maxf(w-alpha, wtarget);
+		} else if(r > R) {
+			/*
+			r > R
+				v-
+					vtarget = r * w
+					v = max(v - accel, vtarget, 0)
+				w+
+					if r ~ 0
+						wtarget = 999
+					else
+						wtarget = v / r
+					w = min(w + alpha, wtarget, omega)
+			*/
+			// v-
+			vtarget = r * w;
+			v = max3f(v-accel, vtarget, 0);
+			
+			// w+
+			if(r < 1) {
+				wtarget = 999;
+			} else {
+				wtarget = v / r;
+			}
+			
+			w = min3f(w + alpha, wtarget, omega);
+		} else if(absf(R - r) < 4) {
+			/*
+			r ~ R
+				start increasing speed to max while maintaining ratio
+				
+				choose order
+					if accel < alpha
+						v+, w+ follows
+					else
+						w+, v+ follows
+				v+
+					v = min(v + accel, vmax)
+				w+
+					if(r ~ 0)
+						wtarget = 999
+					else
+						wtarget = v / r
+					w = min(w + alpha, wtarget, omega)
+			*/
+			if(accel < alpha) {
+				// v+, w+ follows
+				v = minf(v + accel, vmax);
+				
+				if(r < 1) {
+					wtarget = 999;
+				} else {
+					wtarget = v / r;
+				}
+				w = min3f(w + alpha, wtarget, omega);
+				
+			} else {
+				// w+, v+ follows
+				w = minf(w + alpha, omega);
+				
+				if(r < 1) {
+					vtarget = 0;
+				} else {
+					vtarget = w * r;
+				}
+				
+				v = min3f(v + accel, vtarget, vmax);
+			}
+		}
+		
+		distance += v;
+		rotation += w;
+		d_ref = distance;
+		t_ref = rotation;
+		
+		wait_for_regulator();
+	}
+	
+	/*
 	float dist = get_distance_to(x,y);
-	Ydlong = MILIMETER_TO_DOUBLED_INC(y);
-	Xdlong = MILIMETER_TO_DOUBLED_INC(x);
+	Ydlong = MILIMETER_TO_2INC(y);
+	Xdlong = MILIMETER_TO_2INC(x);
 	long goal_angle;
 	long angle_diff;
 	goal_angle = RAD_TO_INC_ANGLE(atan2(y-Y, x-X));
@@ -1157,7 +1262,6 @@ void move_to_new(long x, long y, char direction, int radius) {
 	else if(direction < 0) direction = -1;
 	
 	if(direction == 0) {
-		// determine direction automatically
 		if(absl(angle_diff) < K1/4) {
 			direction = 1;
 		} else {
@@ -1167,8 +1271,7 @@ void move_to_new(long x, long y, char direction, int radius) {
 	
 	current_status = STATUS_MOVING;
 	
-	long D = d_ref;
-	long R = t_ref;
+	
 	float min_speed = VMAX * 0x10 / 255;
 	
 	if(control_flags & CONTROL_FLAG_DEBUG) {
@@ -1223,6 +1326,7 @@ void move_to_new(long x, long y, char direction, int radius) {
 		d_ref = D;
 		t_ref = R;
 	}
+	*/
 }
 
 

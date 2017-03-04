@@ -1,5 +1,149 @@
-#define SINUS_MAX 8192u
-#define SINUS_AMPLITUDE 0x7fff
+#include "math.h"
+#include <math.h>
+
+#define PI 3.1415926535897932384626433832795
+
+const int sinus[SINUS_MAX];
+
+inline long absl(long a)
+{
+	return a >= 0 ? a : -a;
+}
+inline float absf(float a)
+{
+	return a >= 0 ? a : -a;
+}
+
+
+inline long long clipll(long long a, long long b, long long value) {
+	if(value <= a)
+		value = a;
+	else if(value > b)
+		value = b;
+	return value;
+}
+
+int deg_angle_range_fix(int angle) {
+	while(angle > 180)
+		angle -= 360;
+	while(angle < -180)
+		angle += 360;
+	return angle;
+}
+
+float rad_angle_range_fix(float angle) {
+	while(angle > PI)
+		angle -= 2*PI;
+	while(angle < -PI)
+		angle += 2*PI;
+	return angle;
+}
+
+
+
+int sign(int x) {
+	return x >= 0L ? 1 : -1;
+}
+long signl(long x) {
+	return x >= 0L ? 1 : -1;
+}
+
+
+inline float minf(float a, float b) {
+	return a < b ? a : b;
+}
+inline float maxf(float a, float b) {
+	return a > b ? a : b;
+}
+
+long minl(long a, long b) {
+	return a < b ? a : b;
+}
+long maxl(long a, long b) {
+	return a > b ? a : b;
+}
+
+
+
+void sin_cos(long theta, long *sint, long *cost) {
+	if(theta < SINUS_MAX) // 1st quadrant
+	{
+		theta = theta;
+		*sint = sinus[theta];
+		*cost = sinus[SINUS_MAX-1 - theta];
+	}
+	else 
+	{
+		if(theta < 2*SINUS_MAX) // 2nd quadrant
+		{
+			theta = theta - SINUS_MAX;
+			*sint = sinus[SINUS_MAX-1 - theta];
+			*cost = -sinus[theta];
+		}
+		else
+			if(theta < 3*SINUS_MAX) // 3rd quadrant
+			{
+				theta = theta - 2*SINUS_MAX;
+				*sint = -sinus[theta];
+				*cost = -sinus[SINUS_MAX-1 - theta];
+			}
+			else    // 4th quadrant
+			{
+				theta = theta - 3*SINUS_MAX;
+				*sint = -sinus[SINUS_MAX-1 - theta];
+				*cost = sinus[theta];
+			}
+	}
+}
+
+int deg_angle_diff(int a, int b) {
+	long d = a - b;
+	if(d > 180)
+		d -= 360;
+	else if(d < -180)
+		d += 360;
+	return d;
+}
+
+
+float min3f(float a, float b, float c) {
+	if(a < b) {
+		if(a < c) {
+			return a;
+		} else {
+			return c;
+		}
+	} else {
+		if(b < c) {
+			return b;
+		} else {
+			return c;
+		}
+	}
+}
+float max3f(float a, float b, float c) {
+	if(a > b) {
+		if(a > c) {
+			return a;
+		} else {
+			return c;
+		}
+	} else {
+		if(b > c) {
+			return b;
+		} else {
+			return c;
+		}
+	}
+}
+
+
+
+
+
+
+
+
 const int sinus[SINUS_MAX] = { // 8192 vrednosti od 0 - 90 stepeni
 0x0, 0x6, 0xc, 0x12, 0x19, 0x1f, 0x25, 0x2b, 0x32, 0x38, 0x3e, 0x45, 0x4b, 0x51, 0x57, 0x5e, 
 0x64, 0x6a, 0x71, 0x77, 0x7d, 0x83, 0x8a, 0x90, 0x96, 0x9d, 0xa3, 0xa9, 0xaf, 0xb6, 0xbc, 0xc2, 

@@ -6,6 +6,7 @@ src := \
 	src/uart.c \
 	src/init.c \
 	src/pwm.c \
+	src/math.c \
 	src/regulator.c \
 
 

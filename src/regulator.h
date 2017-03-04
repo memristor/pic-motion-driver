@@ -42,7 +42,7 @@
 
 
 // unit conversions
-#define MILIMETER_TO_DOUBLED_INC(x) 	(((long long)(x) << 1)*K2)
+#define MILIMETER_TO_2INC(x) 	(((long long)(x) << 1)*K2)
 #define MILIMETER_TO_INC(x) 			((long)(x)*K2)
 #define INC_TO_MILIMETER(x) 			((x) / K2)
 #define DOUBLED_INC_TO_MILIMETER(x) 	(((x) / 2) / K2)

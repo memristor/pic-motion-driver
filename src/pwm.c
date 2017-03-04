@@ -27,7 +27,8 @@ void CloseMCPWM(void)
 	PWMCON2     =       0;
 
 	P1TCONbits.PTEN = P2TCONbits.PTEN = 0;
-	//ugasi mostove
+	
+	// turn off bridges
 	LATBbits.LATB11 = 0;
 	LATBbits.LATB12 = 0;
 }

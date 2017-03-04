@@ -398,7 +398,9 @@ uint8_t try_read_packet(uint8_t* pkt_type, uint8_t *length) {
 	
 	if(pass) {
 		rx_pkt_read_cursor = 0;
-		
+		start_packet('A');
+			put_byte(*pkt_type);
+		end_packet();
 		return 1;
 	}
 	return 0;
@@ -448,7 +450,6 @@ void end_packet() {
 	
 	pkt_buf[1] = ((payload_size + pkt_buf[2]) << 4) | (pkt_buf[1] & 0xf);
 	
-	// atomicly send packet
 	for(i=0; i < pkt_size; i++) {
 		while(U1STAbits.UTXBF);
 		U1TXREG = pkt_buf[i];
