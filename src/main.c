@@ -8,13 +8,41 @@
 #include "regulator.h"
 #include "uart.h"
 #include "pwm.h"
-#include "init.h"
+#include "encoders.h"
+#include "timer.h"
 #include <libpic30.h>
 #include <p33FJ128MC802.h>
 
 #pragma config FWDTEN = OFF, \
 			   FNOSC = FRCPLL
 
+
+
+void PortInit()
+{
+
+	TRISAbits.TRISA4=0;
+
+	TRISBbits.TRISB8=0;
+	TRISBbits.TRISB9=0;
+	TRISBbits.TRISB10=0;
+	TRISBbits.TRISB11=0;
+	TRISBbits.TRISB12=0;
+	TRISBbits.TRISB13=0;
+	TRISBbits.TRISB14=0;
+	TRISBbits.TRISB15=0;
+
+	LATAbits.LATA4 = 0;
+
+	LATBbits.LATB8 = 0;
+	LATBbits.LATB9 = 0;
+	LATBbits.LATB10 = 0;
+	LATBbits.LATB11 = 1;
+	LATBbits.LATB12 = 1;
+	LATBbits.LATB13 = 0;
+	LATBbits.LATB14 = 0;
+	LATBbits.LATB15 = 0;
+}
 
 int main(void)
 {
@@ -38,6 +66,7 @@ int main(void)
 
 	
 	__builtin_write_OSCCONL(OSCCON & 0xDF);
+	
 	RPINR18bits.U1RXR = 0;		//UART1 RX -> RP0- pin 4
 	RPOR0bits.RP1R = 3;			//UART1 TX -> RP1- pin 5
 	RPINR14bits.QEA1R = 2;		//QEI1A -> RP2

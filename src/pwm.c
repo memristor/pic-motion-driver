@@ -1,6 +1,59 @@
-#include "pwm.h"
 #include <p33FJ128MC802.h>
+#include "pwm.h"
 
+void PWMinit(void)
+{
+	CloseMCPWM();
+
+	P1TCONbits.PTEN = 0;
+	PWM1CON1bits.PMOD1 = 1;
+	PWM1CON1bits.PEN1H = 1;
+	PWM1CON1bits.PEN1L = 0;
+	
+	/*
+	P1DTCON1bits.DTBPS = 0;
+	P1DTCON1bits.DTB = 5;
+	P1DTCON1bits.DTAPS = 0;
+	P1DTCON1bits.DTA = 5;
+	*/
+	
+	P1TMR = 1;
+	P1TPER = 1599;
+	P1DC1 = 0;
+	P1TCONbits.PTEN = 1;
+
+	
+	// init PWM2
+	P2TCONbits.PTEN = 0;
+	PWM2CON1bits.PMOD1 = 1;
+	PWM2CON1bits.PEN1H = 1;
+	PWM2CON1bits.PEN1L = 0;
+	
+	/*
+	P2DTCON1bits.DTBPS = 0;
+	P2DTCON1bits.DTB = 5;
+	P2DTCON1bits.DTAPS = 0;
+	P2DTCON1bits.DTA = 5;
+	*/
+	
+	P2TPER = 1599;
+	P2DC1 = 0;
+	P2TCONbits.PTEN = 1;
+	
+	// turn on bridges
+	LATBbits.LATB11 = 1;
+	LATBbits.LATB12 = 1;
+}
+
+inline void left_pwm(unsigned int PWM)
+{
+	P2DC1 = PWM;
+}
+
+inline void right_pwm(unsigned int PWM)
+{
+	P1DC1 = PWM;
+}
 
 
 /***********************************************************************

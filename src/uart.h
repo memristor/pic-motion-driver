@@ -20,6 +20,9 @@
 
 void UART_Init(long);
 
+
+
+
 /**********************************************************************
  * Function Name     : BusyUART1
  * Description       : This returns status whether the transmission
@@ -114,8 +117,11 @@ unsigned int ReadUART1(void);
 
 void WriteUART1(unsigned int data);
 
-unsigned char UART_CheckRX(void);
-unsigned char UART_GetLastByte(void);
+
+
+
+unsigned char uart_check_rx(void);
+unsigned char uart_get_last_byte(void);
 
 unsigned char getch(void);
 unsigned int getint16(void);

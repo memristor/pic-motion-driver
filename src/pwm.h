@@ -1,7 +1,7 @@
 #ifndef PWM_H
 #define	PWM_H
 
-// void PWMinit(void);
+void PWMinit(void);
 
 /***********************************************************************
  * Function Name     : CloseMCPWM
@@ -81,5 +81,8 @@ void SetMCPWMDeadTimeGeneration (unsigned int config);
  * Return Value      : None
  **********************************************************************/
 void SetMCPWMFaultA(unsigned int config);
+
+extern inline void left_pwm(unsigned int PWM);
+extern inline void right_pwm(unsigned int PWM);
 
 #endif	/* PWM_H */

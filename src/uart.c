@@ -209,6 +209,8 @@ void WriteUART1(unsigned int data)
 		U1TXREG = data & 0xFF;
 }
 
+
+
 void putch(unsigned char c)
 {
 	while(U1STAbits.UTXBF);
@@ -293,12 +295,12 @@ unsigned char getch(void)
 	//return data;
 }
 
-unsigned char UART_GetLastByte(void)
+unsigned char uart_get_last_byte(void)
 {
 	return rx_buf[rx_index1];
 }
 
-unsigned char UART_CheckRX(void)
+unsigned char uart_check_rx(void)
 {
 	return rxCounter;
 }

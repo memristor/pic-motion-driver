@@ -1,7 +1,6 @@
 #include "regulator.h"
 #include "uart.h"
 #include "pwm.h"
-#include "init.h"
 #include <stdint.h>
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
@@ -84,15 +83,7 @@ void reset_stuck() {
 	}
 }
 
-static inline void left_pwm(unsigned int PWM)
-{
-	P2DC1 = PWM;
-}
 
-static inline void right_pwm(unsigned int PWM)
-{
-	P1DC1 = PWM;
-}
 
 
 
@@ -448,7 +439,7 @@ static char get_command(void)
 	if(current_status == STATUS_STUCK) return ERROR;
 	
 	char command;
-	if(UART_CheckRX()) // if any input in serial port
+	if(uart_check_rx()) // if any input in serial port
 	{
 		uint8_t packet_length;
 		if(!try_read_packet((uint8_t*)&command, &packet_length)) return OK;
