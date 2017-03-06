@@ -1,8 +1,8 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-void CloseTimer1(void);
-void TimerInit(void);
+void close_timer(void);
+void timer_init(void);
 
 
 #endif

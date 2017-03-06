@@ -18,7 +18,7 @@
 
 
 
-void PortInit()
+void port_init(void)
 {
 
 	TRISAbits.TRISA4=0;
@@ -79,10 +79,9 @@ int main(void)
 
 	//INTCON1bits.NSTDIS = 1; // disable recursive interrupts?
 
-	PortInit();
-
-	UART_Init(57600);
-	TimerInit();
+	port_init();
+	uart_init(57600);
+	timer_init();
 	QEIinit();
 	
 	CloseMCPWM();
@@ -94,9 +93,9 @@ int main(void)
 
 	while(1)
 	{
-		uint8_t packet_length;
-		if(!try_read_packet((uint8_t*)&command, &packet_length)) continue;
-		
+		Packet* pkt = 0;
+		if(!(pkt=try_read_packet())) continue;
+		command = pkt->type;
 		reset_stuck();
 		switch(command)
 		{

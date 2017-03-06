@@ -10,8 +10,11 @@ todo:
 		; sudden increase in error above jump error threshold => stuck (save engines, sudden spike in current can destroy them)
 		; reference difference exist but encoder is not detecting expected changes => stuck
 		; when stuck happens, immediately turn off engines
+		
+	+ allow sending data asynchronously from timer, implement TX interrupt
+		- test it
+		
 	- sliding detection and report difference from expected continuum (implement in regulator)
-	- allow reporting from timer, implement TX interrupt and maybe add more output message buffers?
 	
 move_to command (N)
 	- calculate optimal curve within given radius in which robot is allowed to rotate (smaller radius => steeper curve and will slow down
@@ -20,3 +23,4 @@ move_to command (N)
 			- max acceleration/deceleration speed
 			- max rotation acceleration/deceleration speed
 			- max rotation speed (limited due to inertia)
+

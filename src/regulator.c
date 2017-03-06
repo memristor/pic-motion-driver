@@ -45,8 +45,6 @@ static volatile long keep_rotation = 0, keep_speed = 0, keep_count = 0;
 static int16_t send_status_counter = 0;
 static int16_t send_status_interval;
 
-#define K1_p ((long)K1)
-
 
 // static uint8_t control_flags = 0xff & ~CONTROL_FLAG_NO_STUCK & ~CONTROL_FLAG_NO_STATUS_CHANGE_REPORT;
 static uint8_t control_flags = 0;
@@ -77,9 +75,9 @@ void reset_stuck() {
 	d_ref_fail_count = 0;
 	prev_rotation_error = 0;
 	prev_distance_error = 0;
-	if(control_flags & CONTROL_FLAG_STUCKED) {
+	if(control_flags & CONTROL_FLAG_STUCK) {
 		control_flags &= ~CONTROL_FLAG_NO_DISTANCE_REGULATOR & ~CONTROL_FLAG_NO_ROTATION_REGULATOR &
-			~CONTROL_FLAG_STUCKED;
+			~CONTROL_FLAG_STUCK;
 	}
 }
 
@@ -138,30 +136,28 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	
 	if (orientation > 0)
 	{
-		while(orientation > K1_p)
+		while(orientation > K1)
 		{
-			orientation -= K1_p;
+			orientation -= K1;
 		}
 	}
 	else
 	{
-		while( orientation < -K1_p )
+		while( orientation < -K1 )
 		{
-			orientation = orientation + K1_p;
+			orientation = orientation + K1;
 		}
 
 	}
 	
-	if(orientation > K1_p/2) {
-		orientation -= K1_p;
+	if(orientation > K1/2) {
+		orientation -= K1;
 	}
-	if(orientation < -K1_p/2) {
-		orientation += K1_p;
+	if(orientation < -K1/2) {
+		orientation += K1;
 	}
 
-
-	theta = (orientation * 2*SINUS_MAX) / (K1_p / 2);
-
+	theta = (orientation * 2*SINUS_MAX) / (K1 / 2);
 	
 	if(theta < 0)
 		theta += 4*SINUS_MAX;
@@ -184,6 +180,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	
 	current_speed = (vL + vR) / 2; // v = s/t, current_speed [inc/ms]
 	
+	// keep speed for some time if interrupted
 	if(keep_count > 0) {
 		t_ref += keep_rotation;
 		d_ref += keep_speed;
@@ -196,7 +193,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	error = d_ref - L;
 	regulator_distance = error * Gp_D - Gd_D * current_speed; // PD (proportional, differential) regulator
 
-	// stuck detection for distance
+	// ---------[ Distance Stuck Detection ]----------
 	if( !(control_flags & CONTROL_FLAG_NO_STUCK) ) {
 		
 		if(absl(error-prev_distance_error) > STUCK_DISTANCE_JUMP_ERROR_THRESHOLD) {
@@ -219,17 +216,17 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	// ------------ rotation regulator -------------
 	angular_speed = vL - vR; // angular speed [inc/ms]
 
-	error = ((long)orientation - t_ref) % K1_p;
+	error = ((long)orientation - t_ref) % K1;
 
-	if(error > K1_p/2) {
-		error -= K1_p;
-	} else if(error < -K1_p/2) {
-		error += K1_p;
+	if(error > K1/2) {
+		error -= K1;
+	} else if(error < -K1/2) {
+		error += K1;
 	}
 
 	regulator_rotation = error * Gp_T - angular_speed * Gd_T; // PD (proportional, differential) regulator
 	
-	// stuck detection for rotation
+	// ------------[ Rotation Stuck Detect ]---------------
 	if( !(control_flags & CONTROL_FLAG_NO_STUCK) ) {
 		
 		if(absl(error-prev_rotation_error) > STUCK_ROTATION_JUMP_ERROR_THRESHOLD) {
@@ -249,13 +246,12 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		if(current_status == STATUS_STUCK) {
 			control_flags |= CONTROL_FLAG_NO_DISTANCE_REGULATOR | CONTROL_FLAG_NO_ROTATION_REGULATOR;
 			CloseMCPWM();
-			control_flags |= CONTROL_FLAG_STUCKED;
+			control_flags |= CONTROL_FLAG_STUCK;
 		}
 	}
+	
 	prev_rotation_error = error;
 	//
-	
-	
 	
 	if(control_flags & CONTROL_FLAG_NO_DISTANCE_REGULATOR) {
 		regulator_distance = 0;
@@ -270,6 +266,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	PWML = regulator_distance - regulator_rotation;
 	PWMD = regulator_distance + regulator_rotation;
 
+	// TODO: refactor this to motor
 	PWMD = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWMD);
 	PWML = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWML);
 
@@ -438,13 +435,12 @@ static char get_command(void)
 	
 	if(current_status == STATUS_STUCK) return ERROR;
 	
-	char command;
 	if(uart_check_rx()) // if any input in serial port
 	{
-		uint8_t packet_length;
-		if(!try_read_packet((uint8_t*)&command, &packet_length)) return OK;
-
-		switch(command)
+		Packet* pkt;
+		if(!(pkt=try_read_packet())) return OK;
+		
+		switch(pkt->type)
 		{           
 			case 'P':
 				send_status_and_position();
@@ -535,7 +531,7 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 	Ydlong = MILIMETER_TO_2INC(Yd);
 
 	d_ref=L;
-	v0 = current_speed;
+	v0 = 0;
 	direction = (direction >= 0 ? 1 : -1);
 
 	// turn to end point, find angle to turn
@@ -560,7 +556,7 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 	L_dist = MILIMETER_TO_INC(length);
 
 	// calculate phase durations
-	T1 = (vmax - current_speed) / accel;
+	T1 = (vmax - v0) / accel;
 	L0 = L;
 	L1 = current_speed * T1 + accel * T1 * T1 / 2;
 
@@ -712,9 +708,9 @@ void forward(int length, unsigned char end_speed)
 	current_status = STATUS_IDLE;
 }
 
-void rotate_absolute_angle(int ugao)
+void rotate_absolute_angle(int angle)
 {
-	int tmp = ugao - orientation * 360 / K1;
+	int tmp = angle - INC_TO_DEG_ANGLE(orientation);
 	tmp = deg_angle_range_fix(tmp);
 	turn(tmp);
 }
@@ -729,7 +725,8 @@ char turn(int angle)
 
 	sign = (angle >= 0 ? 1 : -1);
 
-	Fi_total = (long)angle * K1 / 360;
+	// Fi_total = (long)angle * K1 / 360;
+	Fi_total = DEG_TO_INC_ANGLE(angle);
 
 	T1 = T3 = omega / alpha;
 	Fi1 = alpha * T1 * T1 / 2;
@@ -794,7 +791,7 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
 	long Fi_total, Fi1;
-	float v_poc, dist_ref, ugao_ref, w_ref = 0, v_ref = 0;
+	float v0, dist_ref, angle_ref, w_ref = 0, v_ref = 0;
 	char sign;
 	int angle;
 
@@ -807,13 +804,15 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	
 	R = get_distance_to(Xc, Yc);
 	Fi_start = atan2(((int)Y-(int)Yc), ((int)X-(int)Xc));
-	angle = Fi_start * 180 / PI;
+	// angle = Fi_start * 180 / PI;
+	angle = RAD_TO_DEG_ANGLE(Fi_start);
 	direction = (direction >= 0 ? 1 : -1);
 
 	angle = (angle + direction * sign * 90) % 360;
 	angle = deg_angle_range_fix(angle);
 
-	angle -= orientation * 360 / K1;
+	// angle -= orientation * 360 / K1;
+	angle -= INC_TO_DEG_ANGLE(orientation);
 	angle %= 360;
 
 	angle = deg_angle_range_fix(angle);
@@ -821,9 +820,10 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	if(turn(angle))
 		return;
 
-	v_poc = vmax;
+	v0 = vmax;
 
-	Fi_total = (long)Fi * K1 / 360;
+	// Fi_total = (long)Fi * K1 / 360;
+	Fi_total = DEG_TO_INC_ANGLE(Fi);
 
 	T1 = T3 = omega / alpha;
 	Fi1 = alpha * T1 * T1 / 2;
@@ -844,7 +844,7 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	t1 = t0 + T1;
 	t2 = t1 + T2;
 	t3 = t2 + T3;
-	ugao_ref = t_ref;
+	angle_ref = t_ref;
 	dist_ref = d_ref;
 
 	current_status = STATUS_MOVING;
@@ -855,7 +855,7 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 		t = sys_time;
 		if(get_command() == ERROR)
 		{
-			set_speed_accel(v_poc);
+			set_speed_accel(v0);
 			return;
 		}
 
@@ -866,9 +866,9 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			v_ref += accel;
 			delta = sign * (w_ref - alpha / 2);
 			arc_value = sign * delta * R / wheel_distance;
-			ugao_ref += delta;
+			angle_ref += delta;
 			dist_ref += direction * arc_value;
-			t_ref = ugao_ref;
+			t_ref = angle_ref;
 			d_ref = dist_ref;
 		}
 		else if(t <= t2)
@@ -877,9 +877,9 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			v_ref = vmax;
 			delta = sign * omega;
 			arc_value = sign * delta * R / wheel_distance;
-			ugao_ref += delta;
+			angle_ref += delta;
 			dist_ref += direction * arc_value;
-			t_ref = ugao_ref;
+			t_ref = angle_ref;
 			d_ref = dist_ref;
 		}
 		else if(t <= t3)
@@ -888,13 +888,13 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			v_ref -= accel;
 			delta = sign * (w_ref + alpha / 2);
 			arc_value = sign * delta * R / wheel_distance;
-			ugao_ref += delta;
+			angle_ref += delta;
 			dist_ref += direction * arc_value;
-			t_ref = ugao_ref;
+			t_ref = angle_ref;
 			d_ref = dist_ref;
 		}
 	}
-	set_speed_accel(v_poc);
+	set_speed_accel(v0);
 	current_status = STATUS_IDLE;
 }
 
@@ -1028,12 +1028,6 @@ void move_to(long x, long y, char direction) {
 }
 
 /*
-	plan:
-		standing position:
-			rotate up to 60 deg difference, form tangent line at circle which minimizes angle
-		moving position:
-			get current speed vector, form tangent line at circle which minimizes angle
-			
 		r < R
 			v+
 				vtarget = r * w
@@ -1113,16 +1107,7 @@ void move_to_new(long x, long y, char direction, int radius) {
 	float v = current_speed; /* [inc/ms] */
 	float w = angular_speed; /* [inc/ms] */
 	
-	long long int Xdlong, Ydlong;
-	
-	/*
-	enum Phase {
-		Rotating_phase,
-		Moving_phase
-	};
-	
-	enum Phase phase = Rotating_phase;
-	*/
+	// long long int Xdlong, Ydlong;
 	
 	long distance = d_ref;
 	long rotation = t_ref;

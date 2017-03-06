@@ -8,7 +8,7 @@
 *    Parameters:     None                                           *
 *    Return Value:   None                                           *
 ********************************************************************/
-void CloseTimer1(void)
+void close_timer(void)
 {
     IEC0bits.T1IE = 0;      /* Disable the Timer1 interrupt */
     T1CONbits.TON = 0;      /* Disable timer1 */
@@ -24,7 +24,7 @@ void CloseTimer1(void)
 
 
 
-void TimerInit(void)
+void timer_init(void)
 { 
 	IEC0bits.T1IE = 0;      /* Disable the Timer1 interrupt */
 	T1CONbits.TON = 0;      /* Disable timer1 */

@@ -17,6 +17,7 @@
 	
 	used for converting encoder wheel increments to rotation around an wheel, which means
 	translates to robot orientation
+	= 57666L
 */
 #define K1	(long)(4.0*2048.0 * wheel_distance / (R_wheel / 2.0))
 
@@ -25,6 +26,7 @@
 	2*r*pi - wheel circumference in milimeters
 	8192 [inc] = (r [mm] * 2*pi[rad])*const
 	const = 8192 [inc] / (2*r*pi) [mm] => number of increments per milimeter
+	= 32.05f
 */
 #define K2	/*[inc/mm]*/	(float)(4.0*2048.0 / (R_wheel * PI))
 
@@ -46,7 +48,7 @@
 #define MILIMETER_TO_INC(x) 			((long)(x)*K2)
 #define INC_TO_MILIMETER(x) 			((x) / K2)
 #define DOUBLED_INC_TO_MILIMETER(x) 	(((x) / 2) / K2)
-#define DEG_TO_INC_ANGLE(x) 			((x)*K1/360)
+#define DEG_TO_INC_ANGLE(x) 			((long)(x)*K1/360)
 #define INC_TO_DEG_ANGLE(x) 			((x)*360/K1)
 #define RAD_TO_INC_ANGLE(x) 			((x)/(2.0*PI)*K1)
 #define RAD_TO_DEG_ANGLE(x) 			((x)*180.0/PI)
@@ -88,7 +90,7 @@
 #define CONTROL_FLAG_NO_DISTANCE_REGULATOR 2
 #define CONTROL_FLAG_NO_ROTATION_REGULATOR 4
 #define CONTROL_FLAG_NO_STUCK 8
-#define CONTROL_FLAG_STUCKED 16
+#define CONTROL_FLAG_STUCK 16
 #define CONTROL_FLAG_NO_STATUS_CHANGE_REPORT 32
 
 enum State
