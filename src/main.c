@@ -7,8 +7,8 @@
 
 #include "regulator.h"
 #include "uart.h"
-#include "pwm.h"
-#include "encoders.h"
+#include "motor.h"
+#include "encoder.h"
 #include "timer.h"
 #include <libpic30.h>
 #include <p33FJ128MC802.h>
@@ -82,10 +82,9 @@ int main(void)
 	port_init();
 	uart_init(57600);
 	timer_init();
-	QEIinit();
+	encoder_init();
 	
-	CloseMCPWM();
-	PWMinit();
+	motor_init();
 	
 	reset_driver();
 
@@ -138,7 +137,7 @@ int main(void)
 				tmp = get_word();
 				v = get_byte();
 
-				PWMinit();
+				motor_init();
 				forward(tmp, v);
 
 				break;
@@ -147,7 +146,7 @@ int main(void)
 			case 'T':
 				tmp = get_word();
 
-				PWMinit();
+				motor_init();
 				turn(tmp);
 				break;
 				
@@ -155,7 +154,7 @@ int main(void)
 			case 'A':
 				tmp = get_word();
 
-				PWMinit();
+				motor_init();
 				rotate_absolute_angle(tmp);
 
 				break;
@@ -168,7 +167,7 @@ int main(void)
 				v = get_byte();
 				direction = get_byte(); // + means forward, - means backward
 
-				PWMinit();
+				motor_init();
 				turn_and_go(tmpX, tmpY, v, direction); //(x, y, end_speed, direction)
 				break;
 				     
@@ -180,7 +179,7 @@ int main(void)
 				tmpSU = get_word();
 				direction = get_byte();
 
-				PWMinit();
+				motor_init();
 				arc(tmpX, tmpY, tmpO, tmpSU, direction);
 
 				break;
@@ -191,7 +190,7 @@ int main(void)
 				tmpY = get_word();
 				int direction = get_byte();
 				
-				PWMinit();
+				motor_init();
 				move_to(tmpX, tmpY, direction);
 				
 				break;
@@ -205,7 +204,7 @@ int main(void)
 				// stop and kill PWM
 			case 's':
 				stop();
-				CloseMCPWM();
+				motor_turn_off();
 
 				break;
 				

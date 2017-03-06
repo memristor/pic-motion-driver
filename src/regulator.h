@@ -78,8 +78,7 @@
 #define Gp_T	3
 #define Gd_T	90
 
-// max pwm for engines
-#define PWM_MAX_SPEED 3200
+
 // ----------------------------------------------------------------------------
 
 

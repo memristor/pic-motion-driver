@@ -5,8 +5,8 @@ src := \
 	src/main.c \
 	src/uart.c \
 	src/timer.c \
-	src/encoders.c \
-	src/pwm.c \
+	src/encoder.c \
+	src/motor.c \
 	src/math.c \
 	src/regulator.c \
 

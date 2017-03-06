@@ -1,6 +1,7 @@
 #include "regulator.h"
 #include "uart.h"
-#include "pwm.h"
+#include "motor.h"
+#include "encoder.h"
 #include <stdint.h>
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
@@ -101,10 +102,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	
 	static long sint, cost;
 	
-	static long long PWML, PWMD;
-	
 	static signed long regulator_distance, regulator_rotation;
-	
 	
 	static long error;
 	static volatile float x, y;
@@ -116,13 +114,11 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	//************************************************************************
 	
 	// read left encoder
-	vL = -(int)POS1CNT;
-	POS1CNT = 0;
+	vL = encoder_left_get_count();
 	positionL += vL;
 
 	// read right encoder
-	vR = +(int)POS2CNT;
-	POS2CNT = 0;
+	vR = encoder_right_get_count();
 	positionR += vR;
 
 	/* FIXME: moving too much can cause overflow when passed distance is too big
@@ -174,6 +170,12 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 
 	X = DOUBLED_INC_TO_MILIMETER(Xlong);
 	Y = DOUBLED_INC_TO_MILIMETER(Ylong);
+	
+	// send status periodically if requested
+	if(send_status_interval > 0 && ++send_status_counter > send_status_interval) {
+		send_status_counter = 0;
+		send_status_and_position();
+	}
 
 	// REGULATOR
 	//*************************************************************************
@@ -200,7 +202,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		if((signl(error) != signl(current_speed) && absl(current_speed) > 6) || (absl(regulator_distance) > PWM_MAX_SPEED/4 && absl(current_speed) < 3)) {
+		if((signl(error) != signl(current_speed) && absl(current_speed) > 6) || (absl(regulator_distance) > MOTOR_MAX_SPEED/4 && absl(current_speed) < 3)) {
 			if(++d_ref_fail_count > STUCK_DISTANCE_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				d_ref_fail_count = 0;
@@ -245,7 +247,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		// if robot stuck, then shut down engines
 		if(current_status == STATUS_STUCK) {
 			control_flags |= CONTROL_FLAG_NO_DISTANCE_REGULATOR | CONTROL_FLAG_NO_ROTATION_REGULATOR;
-			CloseMCPWM();
+			motor_turn_off();
 			control_flags |= CONTROL_FLAG_STUCK;
 		}
 	}
@@ -263,36 +265,9 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	}
 
 	// ------ final PWM is result of superposition of 2 regulators --------
-	PWML = regulator_distance - regulator_rotation;
-	PWMD = regulator_distance + regulator_rotation;
 
-	// TODO: refactor this to motor
-	PWMD = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWMD);
-	PWML = clipll(-PWM_MAX_SPEED, PWM_MAX_SPEED, PWML);
-
-	// apply right pwm
-	if (PWMD >= 0)
-	{
-		LATBbits.LATB15 = 0;
-		right_pwm(PWMD);
-	}
-	else
-	{
-		LATBbits.LATB15 = 1;
-		right_pwm(PWM_MAX_SPEED + PWMD);
-	}
-
-	// apply left pwm
-	if(PWML >= 0)
-	{
-		LATBbits.LATB9 = 0;
-		left_pwm(PWML);
-	}
-	else
-	{
-		LATBbits.LATB9 = 1;
-		left_pwm(PWM_MAX_SPEED + PWML);
-	}
+	motor_left_set_power(regulator_distance - regulator_rotation);
+	motor_right_set_power(regulator_distance + regulator_rotation);
 
 	IFS0bits.T1IF = 0;    // Clear Timer interrupt flag 
 }
@@ -302,7 +277,7 @@ void reset_driver(void)
 	positionR = positionL = 0;
 	L = orientation = 0;
 
-	PWMinit();
+	motor_init();
 	set_speed(0x32);
 	set_position(0, 0, 0);
 	current_status = STATUS_IDLE;
@@ -335,8 +310,8 @@ static void setY(int tmp)
 
 static void setO(int tmp)
 {
-	positionL = -(tmp * K1 / 360) / 2;
-	positionR = (tmp * K1 / 360) / 2;
+	positionL = -DEG_TO_INC_ANGLE(tmp) / 2;
+	positionR =  DEG_TO_INC_ANGLE(tmp) / 2;
 
 	L = 0;
 	orientation = (long int)(positionR - positionL) % K1;
@@ -358,6 +333,8 @@ void set_position(int X, int Y, int orientation)
 
 void send_status_and_position(void)
 {
+	if(!can_send_packet()) return;
+	
 	start_packet('P');
 		put_byte(current_status);
 		put_word(X);
@@ -424,22 +401,11 @@ static char get_command(void)
 	
 	report_status();
 	
-	if(send_status_interval > 0 && time != sys_time) {
-		if(++send_status_counter > send_status_interval) {
-			send_status_counter = 0;
-			send_status_and_position();
-		}
-		time = sys_time;
-	}
-	
-	
 	if(current_status == STATUS_STUCK) return ERROR;
+	Packet* pkt;
 	
-	if(uart_check_rx()) // if any input in serial port
+	if((pkt = try_read_packet()) != 0)
 	{
-		Packet* pkt;
-		if(!(pkt=try_read_packet())) return OK;
-		
 		switch(pkt->type)
 		{           
 			case 'P':
@@ -454,7 +420,7 @@ static char get_command(void)
 				// stop and become idle
 				stop();
 
-				PWMinit();
+				motor_init();
 				current_status = STATUS_IDLE;
 				__delay_ms(10);
 
@@ -464,7 +430,7 @@ static char get_command(void)
 				// stop and turn off PWM
 				stop();
 
-				CloseMCPWM();
+				motor_turn_off();
 				current_status = STATUS_IDLE;
 				__delay_ms(10);
 

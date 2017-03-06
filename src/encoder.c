@@ -1,5 +1,5 @@
 #include <p33FJ128MC802.h>
-void QEIinit(void)
+void encoder_init(void)
 {
 	QEI1CONbits.POSRES=0;       //index impuls ne resetuje brojac
 	QEI1CONbits.TQCS=1;         //brojac broji impulse sa QEA ulaza
@@ -18,4 +18,17 @@ void QEIinit(void)
 
 	MAX2CNT=0000;
 	POS2CNT=0;
+}
+
+
+int encoder_left_get_count(void) {
+	int r = -(int)POS1CNT;
+	POS1CNT = 0;
+	return r;
+}
+
+int encoder_right_get_count(void) {
+	int r = +(int)POS2CNT;
+	POS2CNT = 0;
+	return r;
 }
