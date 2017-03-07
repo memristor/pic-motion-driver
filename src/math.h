@@ -14,6 +14,8 @@ int deg_angle_range_fix(int angle);
 float rad_angle_range_fix(float angle);
 long inc_angle_range_fix(long angle);
 
+inline int clip(int a, int b, int value);
+
 extern inline int sign(int x);
 extern inline long signl(long x);
 

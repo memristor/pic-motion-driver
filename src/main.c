@@ -212,6 +212,10 @@ int main(void)
 			case 'R':
 				reset_driver();
 				break;
+			
+			case 'm':
+				motor_set_rate_of_change(get_word());
+				break;
 
 			case 'z':
 				set_stuck_off();

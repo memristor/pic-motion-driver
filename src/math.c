@@ -23,6 +23,14 @@ inline long long clipll(long long a, long long b, long long value) {
 	return value;
 }
 
+inline int clip(int a, int b, int value) {
+	if(value <= a)
+		value = a;
+	else if(value > b)
+		value = b;
+	return value;
+}
+
 int deg_angle_range_fix(int angle) {
 	while(angle > 180)
 		angle -= 360;

@@ -58,8 +58,22 @@ static inline void motor_right_pwm(unsigned int PWM)
 	P1DC1 = PWM;
 }
 
-void motor_left_set_power(long power) {
-	power = clipll(-MOTOR_MAX_SPEED, MOTOR_MAX_SPEED, power);
+
+
+int rate_of_change = MOTOR_MAX_SPEED;
+int left_motor_pwm = 0;
+int right_motor_pwm = 0;
+
+void motor_set_rate_of_change(int change) {
+	rate_of_change = change;
+}
+
+void motor_left_set_power(int power) {
+	power = clip(-MOTOR_MAX_SPEED, MOTOR_MAX_SPEED, power);
+	
+	power = clip(left_motor_pwm-rate_of_change, left_motor_pwm+rate_of_change, power);
+	
+	left_motor_pwm = power;
 	
 	// apply left pwm
 	if(power >= 0)
@@ -74,8 +88,13 @@ void motor_left_set_power(long power) {
 	}
 }
 
-void motor_right_set_power(long power) {
-	power = clipll(-MOTOR_MAX_SPEED, MOTOR_MAX_SPEED, power);
+void motor_right_set_power(int power) {
+	power = clip(-MOTOR_MAX_SPEED, MOTOR_MAX_SPEED, power);
+	
+	power = clip(right_motor_pwm-rate_of_change, right_motor_pwm+rate_of_change, power);
+
+	right_motor_pwm = power;
+	
 	// apply right pwm
 	if (power >= 0)
 	{
