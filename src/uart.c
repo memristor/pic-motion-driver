@@ -288,7 +288,7 @@ enum PacketStatus {
 	sending
 };
 
-static volatile int8_t tx_pkt_sending = -1;
+static volatile Packet* tx_pkt_sending = 0;
 
 static int8_t tx_pkt_stack_num = -1;
 static Packet* tx_pkt_stack[NUM_TX_PACKETS];
@@ -306,21 +306,24 @@ static void init_tx_packets(void) {
 
 void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
 {
-	if(tx_pkt_sending != -1) {
-		U1TXREG = tx_pkt[tx_pkt_sending].cursor++;
-		if(tx_pkt[tx_pkt_sending].cursor >= tx_pkt[tx_pkt_sending].size + PACKET_HEADER) {
-			tx_pkt[tx_pkt_sending].status = free_to_use;
+	if(tx_pkt_sending) {
+		U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
+		if(tx_pkt_sending->cursor >= tx_pkt_sending->size + PACKET_HEADER) {
+			tx_pkt_sending->status = free_to_use;
 			tx_num_free_packets++;
-			tx_pkt_sending = -1;
+			tx_pkt_sending = 0;
 		}
 	}
 	
-	if(tx_pkt_sending == -1) {
+	if(!tx_pkt_sending) {
 		int i;
 		for(i=0; i < NUM_TX_PACKETS; i++) {
 			if(tx_pkt[i].status == ready_to_send) {
 				tx_pkt[i].status = sending;
-				tx_pkt_sending = i;
+				tx_pkt_sending = &tx_pkt[i];
+				// packet is at least PACKET_HEADER size which is bigger than 1, so no need for checking
+				// whether packet is fully sent
+				U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
 				break;
 			}
 		}
@@ -386,9 +389,9 @@ void end_packet(void) {
 		
 		tx_writing_pkt->cursor = 0;
 		tx_writing_pkt->status = ready_to_send;
-		if(tx_pkt_sending == -1) {
-			U1TXREG = tx_writing_pkt->data[0];
-			tx_writing_pkt->cursor++;
+		if(!tx_pkt_sending) {
+			tx_pkt_sending = tx_writing_pkt;
+			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
 			tx_writing_pkt->status = sending;
 		}
 	}

@@ -235,7 +235,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		if(absl(error) > DEG_TO_INC_ANGLE(30) && absl(angular_speed) < DEG_TO_INC_ANGLE(4)) {
+		if(absl(error) > DEG_TO_INC_ANGLE(2) && absl(angular_speed) < DEG_TO_INC_ANGLE(4)) {
 			if(++t_ref_fail_count > STUCK_ROTATION_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				t_ref_fail_count = 0;
@@ -395,10 +395,7 @@ struct MoveCmdParams move_cmd_next;
 	return - OK (continue command) or BREAK/ERROR (break current command)
 */
 static char get_command(void)
-{
-	// should be called every 1ms, otherwise interval is not in [ms] unit
-	static unsigned long time;
-	
+{	
 	report_status();
 	
 	if(current_status == STATUS_STUCK) return ERROR;
