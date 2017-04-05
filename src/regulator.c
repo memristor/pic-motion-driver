@@ -895,17 +895,16 @@ void set_control_flags(uint8_t flags) {
 void move_to(long x, long y, char direction, int radius) {
 	float speed = current_speed;
 	float rotation_speed = angular_speed; /* [inc/ms] */
-	// float acceleration = accel; /* [inc/ms] */
 	
-	// long min_angle = DEG_TO_INC_ANGLE(30);
 	long long int Xdlong, Ydlong;
 	
 	float dist = get_distance_to(x,y);
 	
 	float v_div_w = MILIMETER_TO_INC( minf(dist, radius)/2.0f ) / RAD_TO_INC_ANGLE(1);
 	float w_div_v = 1.0f/v_div_w;
-	float w = w_div_v * speed;
-	float v = speed;
+	
+	float w;
+	float v;
 	
 	Ydlong = MILIMETER_TO_2INC(y);
 	Xdlong = MILIMETER_TO_2INC(x);
@@ -930,18 +929,15 @@ void move_to(long x, long y, char direction, int radius) {
 	
 	long D = d_ref;
 	long R = t_ref;
-	float min_speed = minf(VMAX * 0x0 / 255, vmax/3);
 	
 	float t;
-		
-	/*
-	int e = 0;
-	if(control_flags & CONTROL_FLAG_DEBUG) {
-		start_packet('d');
-			put_byte_word(0xff,0);
-		end_packet();
+	
+	v = vmax;
+	w = w_div_v * v;
+	if(w > omega) {
+		w = omega;
+		v = v_div_w * w;
 	}
-	*/
 	
 	start_command();
 	while(1)
@@ -958,48 +954,52 @@ void move_to(long x, long y, char direction, int radius) {
 		}
 		
 		angle_diff = inc_angle_diff(goal_angle, orient);
-		dist = get_distance_to(x,y);
 		long abs_angle_diff = absl(angle_diff);
 		
-		float ss = signf(speed);
-		float sr = signf(rotation_speed);
+		dist = get_distance_to(x,y);
+		
+		char ss = signf(speed);
+		char sr = signf(rotation_speed);
 		float abs_speed = absf(speed);
 		float abs_rotation_speed = absf(rotation_speed);
 		
-		v = minf(v_div_w * rotation_speed, vmax);
 		if(ss != direction) {
 			speed -= direction * accel;
-			if(speed == 0) {
+			if(speed == 0.0f) {
 				speed += direction;
 			}
 		} else {
-			if(speed*t > MILIMETER_TO_INC(dist)) {
+			t = abs_speed/accel;
+			if(abs_speed*t > MILIMETER_TO_INC(dist)) {
 				// deccelerate
 				if(dist > 1.0f) {
-					speed = ss * maxf( min_speed, abs_speed-accel );
+					speed = dval(ss, maxf(0.0f, abs_speed-accel ));
 				} else {
 					d_ref = L;
 					break;
 				}
-			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10) || speed <= v) {
-				speed = ss * minf(maxf(min_speed, abs_speed+accel), vmax);
-			} else if(speed > v) {
-				speed = ss * maxf(0, abs_speed-accel);
+			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10) || abs_speed <= v) {
+				speed = dval(ss, minf(abs_speed+accel, vmax));
+			} else if(abs_speed > v) {
+				speed = dval(ss, maxf(0.0f, abs_speed-accel));
 			}
 		}
-		w = minf(w_div_v * speed, omega);
-		if(signl(angle_diff) != sr) {
-			rotation_speed -= sr * alpha;
-			if(rotation_speed == 0) {
+		
+		
+		if((char)signl(angle_diff) != sr) {
+			rotation_speed -= dfval(sr, alpha);
+			if(rotation_speed == 0.0f) {
 				rotation_speed += signl(angle_diff);
 			}
 		} else {
 			if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
-				t = (float)rotation_speed/alpha;
-				if(rotation_speed*t > abs_angle_diff) {
-					rotation_speed = sr * maxf( abs_rotation_speed - alpha, 0 );
+				t = abs_rotation_speed/alpha;
+						
+				if(abs_rotation_speed*t > abs_angle_diff) {
+					rotation_speed = dval(sr, maxf( abs_rotation_speed - alpha, 0 ));
 				} else {
-					rotation_speed = sr * minf( abs_rotation_speed + alpha, w );
+					w = minf(w_div_v * abs_speed, omega);
+					rotation_speed = dval(sr, minf( abs_rotation_speed + alpha, w ));
 				}			
 			} else {
 				R = orientation;
@@ -1209,20 +1209,22 @@ void stop(void)
 void soft_stop(void) {
 	float speed = current_speed;
 	float ang_speed = angular_speed;
-	while(absf(speed) > 0.0f || absf(ang_speed) > 0.0f) {
-		wait_for_regulator();
-		if(absf(speed) > accel)
+	while(speed != 0.0f || ang_speed != 0.0f) {
+		if(absf(speed) > accel) {
 			speed -= signf(speed) * accel;
-		else {
+		} else {
 			speed = 0.0f;
 		}
-		if(absf(ang_speed) > alpha)
-			ang_speed -= signf(ang_speed) * alpha;
-		else {
+		
+		if(absf(ang_speed) > alpha) {
+			ang_speed -= dfval(ang_speed, alpha);
+		} else {
 			ang_speed = 0.0f;
 		}
 		d_ref += speed;
 		t_ref += ang_speed;
+		
+		wait_for_regulator();
 	}
 	current_status = STATUS_IDLE;
 }

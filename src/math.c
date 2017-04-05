@@ -14,6 +14,20 @@ inline float absf(float a)
 	return a >= 0 ? a : -a;
 }
 
+inline float dfval(float dir, float val) {
+	if(dir >= 0) {
+		return val;
+	} else {
+		return -val;
+	}
+}
+inline float dval(char dir, float val) {
+	if(dir >= 0) {
+		return val;
+	} else {
+		return -val;
+	}
+}
 
 inline long long clipll(long long a, long long b, long long value) {
 	if(value <= a)
@@ -49,14 +63,19 @@ float rad_angle_range_fix(float angle) {
 
 
 
-int sign(int x) {
+inline int sign(int x) {
 	return x >= 0L ? 1 : -1;
 }
-long signl(long x) {
+inline long signl(long x) {
 	return x >= 0L ? 1 : -1;
 }
+/*
 float signf(float x) {
 	return x >= 0.0f ? 1.0f : -1.0f;
+}
+*/
+inline char signf(float x) {
+	return x >= 0.0f ? 1 : -1;
 }
 
 
