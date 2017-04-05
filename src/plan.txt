@@ -12,7 +12,6 @@ todo:
 		; when stuck happens, immediately turn off engines
 		
 	+ allow sending data asynchronously from timer, implement TX interrupt
-		- test it
 		
 	- sliding detection and report difference from expected continuum (implement in regulator)
 	
@@ -24,3 +23,13 @@ move_to command (N)
 			- max rotation acceleration/deceleration speed
 			- max rotation speed (limited due to inertia)
 
+	- small distances smooth
+	- soft stop
+	- path module
+		- update position
+		- bezier interpolate
+		- add points
+		- flush
+	- hard movement
+	- bezier
+	- config

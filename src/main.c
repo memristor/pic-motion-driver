@@ -11,6 +11,7 @@
 #include "encoder.h"
 #include "timer.h"
 #include <libpic30.h>
+#include <stdint.h>
 #include <p33FJ128MC802.h>
 
 #pragma config FWDTEN = OFF, \
@@ -47,7 +48,7 @@ void port_init(void)
 int main(void)
 {
 	int tmpX, tmpY, tmp, tmpO;
-
+	calculate_K(90.5f,330.0f);
 	char command, v, direction, tmpSU;
 
 	/* Configure Oscillator to operate the device at 30Mhz
@@ -110,7 +111,25 @@ int main(void)
 			case 'c':
 				set_control_flags(get_byte());
 				break;
+			
+			case 'C': {
+				uint16_t tmp_wheel_R_h = get_word();
+				uint16_t tmp_wheel_R_l = get_word();
+				uint32_t tmp_wheel_R = ((uint32_t)tmp_wheel_R_h << 16) | tmp_wheel_R_l;
 				
+				uint16_t tmp_wheel_distance_h = get_word();
+				uint16_t tmp_wheel_distance_l = get_word();
+				uint32_t tmp_wheel_distance = ((uint32_t)tmp_wheel_distance_h << 16) | tmp_wheel_distance_l;
+				
+				float wheel_R = tmp_wheel_R;
+				wheel_R /= 1000.0f;
+				
+				float wheel_distance = tmp_wheel_distance;
+				wheel_distance /= 1000.0f;
+				
+				calculate_K(wheel_R, wheel_distance);
+				break;
+			}
 				// read status and position
 			case 'P':
 				send_status_and_position();
@@ -189,10 +208,13 @@ int main(void)
 				tmpX = get_word();
 				tmpY = get_word();
 				int direction = get_byte();
+				int radius = 0x7fff;
+				if(pkt->size >= 6) {
+					radius = get_word();
+				}
 				
 				motor_init();
-				move_to(tmpX, tmpY, direction);
-				
+				move_to(tmpX, tmpY, direction, radius);
 				break;
 			}
 				// stop

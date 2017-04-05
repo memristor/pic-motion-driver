@@ -8,6 +8,12 @@
 #include <math.h>
 #include "math.h"
 
+long K1;
+float K2;
+
+float R_wheel;
+float wheel_distance;
+
 static float vmax, accel;
 
 /*
@@ -235,7 +241,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			current_status = STATUS_STUCK;
 		}
 		
-		if(absl(error) > DEG_TO_INC_ANGLE(2) && absl(angular_speed) < DEG_TO_INC_ANGLE(4)) {
+		if(absl(error) > DEG_TO_INC_ANGLE(10) && signl(error) != signl(angular_speed) && absl(angular_speed) < DEG_TO_INC_ANGLE(1)) {
 			if(++t_ref_fail_count > STUCK_ROTATION_MAX_FAIL_COUNT) {
 				current_status = STATUS_STUCK;
 				t_ref_fail_count = 0;
@@ -882,7 +888,7 @@ void set_control_flags(uint8_t flags) {
 		1 - forward
 	   -1 - backward
 */
-void move_to(long x, long y, char direction) {
+void move_to(long x, long y, char direction, int radius) {
 	float speed = current_speed;
 	float rotation_speed = angular_speed; /* [inc/ms] */
 	// float acceleration = accel; /* [inc/ms] */
@@ -891,6 +897,12 @@ void move_to(long x, long y, char direction) {
 	long long int Xdlong, Ydlong;
 	
 	float dist = get_distance_to(x,y);
+	
+	float v_div_w = MILIMETER_TO_INC( minf(dist, radius)/2.0f ) / RAD_TO_INC_ANGLE(1);
+	float w_div_v = 1.0f/v_div_w;
+	float w = w_div_v * speed;
+	float v = speed;
+	
 	Ydlong = MILIMETER_TO_2INC(y);
 	Xdlong = MILIMETER_TO_2INC(x);
 	long goal_angle;
@@ -914,13 +926,18 @@ void move_to(long x, long y, char direction) {
 	
 	long D = d_ref;
 	long R = t_ref;
-	float min_speed = VMAX * 0x10 / 255;
+	float min_speed = minf(VMAX * 0x0 / 255, vmax/3);
+	
+	float t;
+		
+	/*
 	int e = 0;
 	if(control_flags & CONTROL_FLAG_DEBUG) {
 		start_packet('d');
 			put_byte_word(0xff,0);
 		end_packet();
 	}
+	*/
 	
 	start_command();
 	while(1)
@@ -941,16 +958,46 @@ void move_to(long x, long y, char direction) {
 		
 		long abs_angle_diff = absl(angle_diff);
 		
-		if(abs_angle_diff > DEG_TO_INC_ANGLE(20)) {
-			rotation_speed = minf( rotation_speed + alpha, omega/2 );
-		} else if(abs_angle_diff > DEG_TO_INC_ANGLE(3)){
-			rotation_speed = maxf( rotation_speed - alpha, min_speed );
+		v = minf(v_div_w * rotation_speed, vmax);
+		if(speed*t > MILIMETER_TO_INC(dist)) {
+			// decelerate
+			if(dist > 1.0f) {
+				speed = maxf( min_speed, speed-accel );
+			} else {
+				d_ref = L;
+				return;
+			}
+		} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10) || speed <= v) {
+			speed = minf(maxf(min_speed, speed+accel), vmax);
+		} else if(speed > v+10) {
+			speed = maxf(0, speed-accel);
+		}
+		
+		w = minf(w_div_v * speed, omega);
+		if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
+			// a*t = w => t
+			// a*t*t/2 = theta
+			// theta / 2
+			//
+			t = (float)rotation_speed/alpha;
+			if(rotation_speed*t > abs_angle_diff) {
+				rotation_speed = maxf( rotation_speed - alpha, 0 );
+			} else {
+				rotation_speed = minf( rotation_speed + alpha, w );
+			}			
 		} else {
 			R = orientation;
 		}
 		
-		dist = get_distance_to(x,y);
 		
+		dist = get_distance_to(x,y);
+		t = (float)speed/accel;
+		
+		
+		
+		// v*t = s
+		// a*t = v => t, if a*t^2/2+10 >= s => decelerate
+		/*
 		if(dist > 200.0f && abs_angle_diff < DEG_TO_INC_ANGLE(65)) {
 			if(speed < vmax) {
 				speed = maxf( min_speed, speed+accel/2 );
@@ -961,9 +1008,9 @@ void move_to(long x, long y, char direction) {
 			d_ref = L;
 			return;
 		}
+		*/
 		
-		
-		
+		/*
 		if( (control_flags & CONTROL_FLAG_DEBUG) && (++e > 25) ) {
 			start_packet('d');
 				put_byte_word(0, speed);
@@ -981,6 +1028,7 @@ void move_to(long x, long y, char direction) {
 			
 			e = 0;
 		}
+		*/
 		
 		D += direction * speed;
 		R += rotation_speed * signl(angle_diff);
@@ -988,6 +1036,7 @@ void move_to(long x, long y, char direction) {
 		d_ref = D;
 		t_ref = R;
 	}
+	current_status = STATUS_IDLE;
 }
 
 /*
@@ -1075,110 +1124,74 @@ void move_to_new(long x, long y, char direction, int radius) {
 	long distance = d_ref;
 	long rotation = t_ref;
 	
+	// goal radius of rotation
 	int R = radius / 2;
 	
-	float vtarget;
-	float wtarget;
+	// TODO: if goal is inside radius => reduce radius
 	
-	float r = absf(v) / absf(w);
+	float v_target;
+	float w_target;
+	
+	float r;
+	
+	// TODO: if facing wrong direction => rotation slowly -> 0, speed -> minimal needed for rotation, but stop when rotation is 0
 	
 	while(1) {
-		
-		
 		r = absf(v) / absf(w);
 		if(r < R) {
-			/*
-			r < R
-				v+
-					vtarget = r * w
-					v = min(v + accel, vtarget, vmax)
-				w-
-					if r ~ 0
-						wtarget = 999
-					else
-						wtarget = v / r
-					w = max(w - alpha, wtarget)
-			*/
 			// v+
-			vtarget = v * w;
-			v = min3f(v+accel, vtarget, vmax);
+			v_target = v * w;
+			v = min3f(v+accel, v_target, vmax);
 			
 			// w-
-			if(r == 0) {
-				wtarget = 999;
+			if(r <= 1) {
+				w_target = 999;
 			} else {
-				wtarget = v / w;
+				w_target = v / w;
 			}
 			
-			w = maxf(w-alpha, wtarget);
+			w = maxf(w-alpha, w_target);
 		} else if(r > R) {
-			/*
-			r > R
-				v-
-					vtarget = r * w
-					v = max(v - accel, vtarget, 0)
-				w+
-					if r ~ 0
-						wtarget = 999
-					else
-						wtarget = v / r
-					w = min(w + alpha, wtarget, omega)
-			*/
 			// v-
-			vtarget = r * w;
-			v = max3f(v-accel, vtarget, 0);
+			v_target = r * w;
+			v = max3f(v-accel, v_target, 0);
 			
 			// w+
 			if(r < 1) {
-				wtarget = 999;
+				w_target = 999;
 			} else {
-				wtarget = v / r;
+				w_target = v / r;
 			}
 			
-			w = min3f(w + alpha, wtarget, omega);
+			w = min3f(w + alpha, w_target, omega);
 		} else if(absf(R - r) < 4) {
-			/*
-			r ~ R
-				start increasing speed to max while maintaining ratio
-				
-				choose order
-					if accel < alpha
-						v+, w+ follows
-					else
-						w+, v+ follows
-				v+
-					v = min(v + accel, vmax)
-				w+
-					if(r ~ 0)
-						wtarget = 999
-					else
-						wtarget = v / r
-					w = min(w + alpha, wtarget, omega)
-			*/
+			
 			if(accel < alpha) {
 				// v+, w+ follows
 				v = minf(v + accel, vmax);
 				
 				if(r < 1) {
-					wtarget = 999;
+					w_target = 999;
 				} else {
-					wtarget = v / r;
+					w_target = v / r;
 				}
-				w = min3f(w + alpha, wtarget, omega);
+				
+				w = min3f(w + alpha, w_target, omega);
 				
 			} else {
 				// w+, v+ follows
 				w = minf(w + alpha, omega);
 				
-				if(r < 1) {
-					vtarget = 0;
-				} else {
-					vtarget = w * r;
-				}
-				
-				v = min3f(v + accel, vtarget, vmax);
+				v_target = w * r;
+				v = min3f(v + accel, v_target, vmax);
 			}
 		}
+		
+		/* TODO:
+		 * 	 if goal is on circle => predict when needed to start slowing down and
+		 * 		if close to goal => start slowing down (while maintaining ratio)
+		 *   if close to facing goal => rotation slowly -> 0
+		 */
 		
 		distance += v;
 		rotation += w;
@@ -1187,85 +1200,17 @@ void move_to_new(long x, long y, char direction, int radius) {
 		
 		wait_for_regulator();
 	}
-	
+	// TODO: what if goal is not on circle, but is close to it
+	// TODO: go forward to target, slow down
+}
+
+void move_hard() {
 	/*
-	float dist = get_distance_to(x,y);
-	Ydlong = MILIMETER_TO_2INC(y);
-	Xdlong = MILIMETER_TO_2INC(x);
-	long goal_angle;
-	long angle_diff;
-	goal_angle = RAD_TO_INC_ANGLE(atan2(y-Y, x-X));
-	angle_diff = inc_angle_diff(goal_angle, orientation);
-	
-	if(direction > 0) direction = 1;
-	else if(direction < 0) direction = -1;
-	
-	if(direction == 0) {
-		if(absl(angle_diff) < K1/4) {
-			direction = 1;
-		} else {
-			direction = -1;
-		}
-	}
-	
-	current_status = STATUS_MOVING;
-	
-	
-	float min_speed = VMAX * 0x10 / 255;
-	
-	if(control_flags & CONTROL_FLAG_DEBUG) {
-		start_packet('d');
-			put_byte_word(0xff,0);
-		end_packet();
-	}
-	
-	start_command();
-	while(1)
-	{
-		if(get_command() == ERROR)
-			return;
-			
-		wait_for_regulator();
-		
-		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
-		long orient = orientation;
-		
-		if(direction == -1) {
-			orient = inc_angle_range_fix( orient + DEG_TO_INC_ANGLE( 180 ) );
-		}
-		
-		angle_diff = inc_angle_diff(goal_angle, orient);
-		
-		long abs_angle_diff = absl(angle_diff);
-		
-		if(abs_angle_diff > DEG_TO_INC_ANGLE(20)) {
-			rotation_speed = minf( rotation_speed + alpha/2, omega/2 );
-		} else if(abs_angle_diff > DEG_TO_INC_ANGLE(3)){
-			rotation_speed = maxf( rotation_speed - alpha/2, min_speed );
-		} else {
-			R = orientation;
-		}
-		
-		dist = get_distance_to(x,y);
-		
-		if(dist > 200.0f && abs_angle_diff < DEG_TO_INC_ANGLE(65)) {
-			if(speed < vmax) {
-				speed = maxf( min_speed, speed+accel );
-			}
-		} else if(dist > 1.0f && dist <= 50.0f) {
-			speed = maxf( min_speed, speed-accel );
-		} else if(dist < 1.0f) {
-			d_ref = L;
-			return;
-		}
-		
-		D += direction * speed;
-		R += rotation_speed * signl(angle_diff);
-		
-		d_ref = D;
-		t_ref = R;
-	}
-	*/
+	 * get closest point in interpolation starting from last
+	 * interpolations:
+	 *  1. ms => do actual calc (dynamic calc length)
+	 *  2. res => check for slowdowns, progress
+	 */
 }
 
 
@@ -1312,3 +1257,14 @@ void set_stuck_on(void) {
 void set_stuck_off(void) {
 	control_flags |= CONTROL_FLAG_NO_STUCK;
 }
+
+
+void calculate_K(float _wheel_R, float _wheel_distance) {
+	R_wheel = _wheel_R;
+	wheel_distance = _wheel_distance;
+	//float wheel_R;
+	//float wheel_distance;
+	K1 = (long)(4.0*2048.0 * wheel_distance / (R_wheel / 2.0));
+	K2 = (float)(4.0*2048.0 / (R_wheel * PI));
+}
+
