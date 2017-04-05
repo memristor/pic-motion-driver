@@ -423,7 +423,7 @@ static char get_command(void)
 				// stop and become idle
 				stop();
 
-				motor_init();
+				// motor_init();
 				current_status = STATUS_IDLE;
 				__delay_ms(10);
 
@@ -431,12 +431,16 @@ static char get_command(void)
 
 			case 's':
 				// stop and turn off PWM
-				stop();
+				// stop();
 
 				motor_turn_off();
 				current_status = STATUS_IDLE;
 				__delay_ms(10);
 
+				return BREAK;
+			
+			case 't':
+				soft_stop();
 				return BREAK;
 				
 			case 'c':
@@ -1226,6 +1230,27 @@ void stop(void)
 
 	__delay_ms(20);
 
+	current_status = STATUS_IDLE;
+}
+
+void soft_stop(void) {
+	long speed = current_speed;
+	long ang_speed = angular_speed;
+	while(absl(speed) > 0 || absl(ang_speed)) {
+		wait_for_regulator();
+		if(absl(speed) > accel)
+			speed -= signl(speed) * accel;
+		else {
+			speed = 0;
+		}
+		if(absl(ang_speed) > alpha)
+			ang_speed -= signl(angular_speed) * alpha;
+		else {
+			ang_speed = 0;
+		}
+		d_ref += speed;
+		t_ref += ang_speed;
+	}
 	current_status = STATUS_IDLE;
 }
 

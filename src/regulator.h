@@ -128,6 +128,7 @@ enum State get_status(void);
 void force_status(enum State);
 void set_status_update_interval(int miliseconds);
 
+void soft_stop(void);
 void set_stuck_on(void);
 void set_stuck_off(void);
 void calculate_K(float _wheel_R, float _wheel_distance);
