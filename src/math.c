@@ -55,6 +55,9 @@ int sign(int x) {
 long signl(long x) {
 	return x >= 0L ? 1 : -1;
 }
+float signf(float x) {
+	return x >= 0.0f ? 1.0f : -1.0f;
+}
 
 
 inline float minf(float a, float b) {

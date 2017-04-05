@@ -18,6 +18,7 @@ inline int clip(int a, int b, int value);
 
 extern inline int sign(int x);
 extern inline long signl(long x);
+extern inline float signf(float x);
 
 extern inline float minf(float a, float b);
 extern inline float maxf(float a, float b);

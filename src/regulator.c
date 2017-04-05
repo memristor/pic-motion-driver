@@ -950,7 +950,6 @@ void move_to(long x, long y, char direction, int radius) {
 			return;
 			
 		wait_for_regulator();
-		
 		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
 		long orient = orientation;
 		
@@ -959,83 +958,57 @@ void move_to(long x, long y, char direction, int radius) {
 		}
 		
 		angle_diff = inc_angle_diff(goal_angle, orient);
-		
+		dist = get_distance_to(x,y);
 		long abs_angle_diff = absl(angle_diff);
 		
+		float ss = signf(speed);
+		float sr = signf(rotation_speed);
+		float abs_speed = absf(speed);
+		float abs_rotation_speed = absf(rotation_speed);
+		
 		v = minf(v_div_w * rotation_speed, vmax);
-		if(speed*t > MILIMETER_TO_INC(dist)) {
-			// decelerate
-			if(dist > 1.0f) {
-				speed = maxf( min_speed, speed-accel );
-			} else {
-				d_ref = L;
-				return;
+		if(ss != direction) {
+			speed -= direction * accel;
+			if(speed == 0) {
+				speed += direction;
 			}
-		} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10) || speed <= v) {
-			speed = minf(maxf(min_speed, speed+accel), vmax);
-		} else if(speed > v+10) {
-			speed = maxf(0, speed-accel);
-		}
-		
-		w = minf(w_div_v * speed, omega);
-		if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
-			// a*t = w => t
-			// a*t*t/2 = theta
-			// theta / 2
-			//
-			t = (float)rotation_speed/alpha;
-			if(rotation_speed*t > abs_angle_diff) {
-				rotation_speed = maxf( rotation_speed - alpha, 0 );
-			} else {
-				rotation_speed = minf( rotation_speed + alpha, w );
-			}			
 		} else {
-			R = orientation;
-		}
-		
-		
-		dist = get_distance_to(x,y);
-		t = (float)speed/accel;
-		
-		
-		
-		// v*t = s
-		// a*t = v => t, if a*t^2/2+10 >= s => decelerate
-		/*
-		if(dist > 200.0f && abs_angle_diff < DEG_TO_INC_ANGLE(65)) {
-			if(speed < vmax) {
-				speed = maxf( min_speed, speed+accel/2 );
+			if(speed*t > MILIMETER_TO_INC(dist)) {
+				// deccelerate
+				if(dist > 1.0f) {
+					speed = ss * maxf( min_speed, abs_speed-accel );
+				} else {
+					d_ref = L;
+					break;
+				}
+			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10) || speed <= v) {
+				speed = ss * minf(maxf(min_speed, abs_speed+accel), vmax);
+			} else if(speed > v) {
+				speed = ss * maxf(0, abs_speed-accel);
 			}
-		} else if(dist > 1.0f && dist <= 50.0f) {
-			speed = maxf( min_speed, speed-accel );
-		} else if(dist < 1.0f) {
-			d_ref = L;
-			return;
 		}
-		*/
-		
-		/*
-		if( (control_flags & CONTROL_FLAG_DEBUG) && (++e > 25) ) {
-			start_packet('d');
-				put_byte_word(0, speed);
-				put_byte_word(1, angle_diff);
-				put_byte_word(2, rotation_speed);
-				put_byte_word(3, (int)dist);
-				put_byte_word(4, orientation);
-				put_byte_word(5, goal_angle);
-				put_byte_word(6, x);
-				put_byte_word(7, y);
-				put_byte_word(8, RAD_TO_DEG_ANGLE( atan2(y-Y, x-X) ));
-				put_byte_word(25, X);
-				put_byte_word(26, Y);
-			end_packet();
-			
-			e = 0;
+		w = minf(w_div_v * speed, omega);
+		if(signl(angle_diff) != sr) {
+			rotation_speed -= sr * alpha;
+			if(rotation_speed == 0) {
+				rotation_speed += signl(angle_diff);
+			}
+		} else {
+			if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
+				t = (float)rotation_speed/alpha;
+				if(rotation_speed*t > abs_angle_diff) {
+					rotation_speed = sr * maxf( abs_rotation_speed - alpha, 0 );
+				} else {
+					rotation_speed = sr * minf( abs_rotation_speed + alpha, w );
+				}			
+			} else {
+				R = orientation;
+			}
 		}
-		*/
 		
-		D += direction * speed;
-		R += rotation_speed * signl(angle_diff);
+		
+		D += speed;
+		R += rotation_speed;
 		
 		d_ref = D;
 		t_ref = R;
@@ -1129,7 +1102,7 @@ void move_to_new(long x, long y, char direction, int radius) {
 	long rotation = t_ref;
 	
 	// goal radius of rotation
-	int R = radius / 2;
+	int R = (radius) / (2*RAD_TO_INC_ANGLE(1));
 	
 	// TODO: if goal is inside radius => reduce radius
 	
@@ -1234,19 +1207,19 @@ void stop(void)
 }
 
 void soft_stop(void) {
-	long speed = current_speed;
-	long ang_speed = angular_speed;
-	while(absl(speed) > 0 || absl(ang_speed)) {
+	float speed = current_speed;
+	float ang_speed = angular_speed;
+	while(absf(speed) > 0.0f || absf(ang_speed) > 0.0f) {
 		wait_for_regulator();
-		if(absl(speed) > accel)
-			speed -= signl(speed) * accel;
+		if(absf(speed) > accel)
+			speed -= signf(speed) * accel;
 		else {
-			speed = 0;
+			speed = 0.0f;
 		}
-		if(absl(ang_speed) > alpha)
-			ang_speed -= signl(angular_speed) * alpha;
+		if(absf(ang_speed) > alpha)
+			ang_speed -= signf(ang_speed) * alpha;
 		else {
-			ang_speed = 0;
+			ang_speed = 0.0f;
 		}
 		d_ref += speed;
 		t_ref += ang_speed;
@@ -1287,8 +1260,6 @@ void set_stuck_off(void) {
 void calculate_K(float _wheel_R, float _wheel_distance) {
 	R_wheel = _wheel_R;
 	wheel_distance = _wheel_distance;
-	//float wheel_R;
-	//float wheel_distance;
 	K1 = (long)(4.0*2048.0 * wheel_distance / (R_wheel / 2.0));
 	K2 = (float)(4.0*2048.0 / (R_wheel * PI));
 }
