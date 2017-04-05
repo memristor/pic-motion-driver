@@ -16,7 +16,7 @@ todo:
 	- sliding detection and report difference from expected continuum (implement in regulator)
 	
 move_to command (N)
-	- calculate optimal curve within given radius in which robot is allowed to rotate (smaller radius => steeper curve and will slow down
+	+ calculate optimal curve within given radius in which robot is allowed to rotate (smaller radius => steeper curve and will slow down
 		and transfer all its max speed into rotation)
 		; needed data
 			- max acceleration/deceleration speed

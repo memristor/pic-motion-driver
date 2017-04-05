@@ -222,7 +222,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	//
 
 	// ------------ rotation regulator -------------
-	angular_speed = vL - vR; // angular speed [inc/ms]
+	angular_speed = vR - vL; // angular speed [inc/ms]
 
 	error = ((long)orientation - t_ref) % K1;
 
@@ -232,7 +232,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		error += K1;
 	}
 
-	regulator_rotation = error * Gp_T - angular_speed * Gd_T; // PD (proportional, differential) regulator
+	regulator_rotation = error * Gp_T - (-angular_speed * Gd_T); // PD (proportional, differential) regulator
 	
 	// ------------[ Rotation Stuck Detect ]---------------
 	if( !(control_flags & CONTROL_FLAG_NO_STUCK) ) {
@@ -440,7 +440,7 @@ static char get_command(void)
 				return BREAK;
 			
 			case 't':
-				soft_stop();
+				smooth_stop();
 				return BREAK;
 				
 			case 'c':
@@ -937,6 +937,10 @@ void move_to(long x, long y, char direction, int radius) {
 	if(w > omega) {
 		w = omega;
 		v = v_div_w * w;
+		if(v > vmax) {
+			current_status = STATUS_ERROR;
+			return;
+		}
 	}
 	
 	start_command();
@@ -963,42 +967,42 @@ void move_to(long x, long y, char direction, int radius) {
 		float abs_speed = absf(speed);
 		float abs_rotation_speed = absf(rotation_speed);
 		
+		
+		// speed
 		if(ss != direction) {
-			speed -= direction * accel;
+			speed -= dval(direction, accel);
 			if(speed == 0.0f) {
-				speed += direction;
+				speed += dval(direction, 0.1f);
 			}
 		} else {
 			t = abs_speed/accel;
 			if(abs_speed*t > MILIMETER_TO_INC(dist)) {
-				// deccelerate
+				// slow down
 				if(dist > 1.0f) {
 					speed = dval(ss, maxf(0.0f, abs_speed-accel ));
 				} else {
 					d_ref = L;
 					break;
 				}
-			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10) || abs_speed <= v) {
+			} else if(abs_speed < v) {
 				speed = dval(ss, minf(abs_speed+accel, vmax));
 			} else if(abs_speed > v) {
 				speed = dval(ss, maxf(0.0f, abs_speed-accel));
 			}
 		}
 		
-		
+		// rotation
 		if((char)signl(angle_diff) != sr) {
-			rotation_speed -= dfval(sr, alpha);
+			rotation_speed -= dval(sr, alpha);
 			if(rotation_speed == 0.0f) {
-				rotation_speed += signl(angle_diff);
+				rotation_speed += dval(signl(angle_diff), 0.1f);
 			}
 		} else {
 			if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
 				t = abs_rotation_speed/alpha;
-						
 				if(abs_rotation_speed*t > abs_angle_diff) {
 					rotation_speed = dval(sr, maxf( abs_rotation_speed - alpha, 0 ));
 				} else {
-					w = minf(w_div_v * abs_speed, omega);
 					rotation_speed = dval(sr, minf( abs_rotation_speed + alpha, w ));
 				}			
 			} else {
@@ -1206,7 +1210,7 @@ void stop(void)
 	current_status = STATUS_IDLE;
 }
 
-void soft_stop(void) {
+void smooth_stop(void) {
 	float speed = current_speed;
 	float ang_speed = angular_speed;
 	while(speed != 0.0f || ang_speed != 0.0f) {
