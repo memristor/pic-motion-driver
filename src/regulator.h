@@ -77,17 +77,6 @@
 
 // ----------------------------------------------------------------------------
 
-
-
-
-// control flags
-#define CONTROL_FLAG_DEBUG 1
-#define CONTROL_FLAG_NO_DISTANCE_REGULATOR 2
-#define CONTROL_FLAG_NO_ROTATION_REGULATOR 4
-#define CONTROL_FLAG_NO_STUCK 8
-#define CONTROL_FLAG_STUCK 16
-#define CONTROL_FLAG_NO_STATUS_CHANGE_REPORT 32
-
 enum State
 {
 	STATUS_IDLE = 'I',
@@ -96,8 +85,6 @@ enum State
 	STATUS_STUCK = 'S',
 	STATUS_ERROR = 'E'
 };
-
-void set_control_flags(uint8_t flags);
 
 void regulator_init(void);
 void reset_driver(void);
@@ -120,11 +107,8 @@ void send_status_and_position(void);
 void report_status(void);
 enum State get_status(void);
 void force_status(enum State);
-void set_status_update_interval(int miliseconds);
 
 void smooth_stop(void);
-void set_stuck_on(void);
-void set_stuck_off(void);
 void calculate_K();
 #endif	/* REGULACIJA_H */
 

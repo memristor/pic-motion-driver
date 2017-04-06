@@ -107,7 +107,7 @@ int main(void)
 		switch(command)
 		{
 			// set position and orientation
-			case 'I':
+			case CMD_SET_POSITION_AND_ORIENTATION:
 				// x [mm], y [mm], orientation
 				tmpX = get_word();
 				tmpY = get_word();
@@ -115,73 +115,30 @@ int main(void)
 				set_position(tmpX, tmpY, tmpO);
 				break;
 				
-			case 'c':
-				//set_control_flags(get_byte());
-				
+			case CMD_SET_CONFIG:
 				config_load(pkt->size, pkt->data);
-				/*
-				config_set_as_uint32(pkt->data[0], load_uint32_bigendian(pkt->data+1));
-				start_packet('C');
-					put_byte(pkt->data[0]);
-					put_byte(pkt->data[1]);
-					put_byte(pkt->data[2]);
-					put_byte(pkt->data[3]);
-					put_byte(pkt->data[4]);
-				end_packet();
-				
-				
-				uint32_t val = config_get_as_uint32(pkt->data[0]);
-				start_packet('c');
-					put_word(val >> 16);
-					put_word(val);
-				end_packet();
-				*/
 				break;
 			
-			case 'C': {
+			case CMD_GET_CONFIG: {
 				int key = get_byte();
 				uint32_t val = config_get_as_uint32(key);
-				start_packet('C');
+				start_packet(CMD_GET_CONFIG);
 					put_word(val >> 16);
 					put_word(val);
 				end_packet();
-				/*
-				uint16_t tmp_wheel_R_h = get_word();
-				uint16_t tmp_wheel_R_l = get_word();
-				uint32_t tmp_wheel_R = ((uint32_t)tmp_wheel_R_h << 16) | tmp_wheel_R_l;
-				
-				uint16_t tmp_wheel_distance_h = get_word();
-				uint16_t tmp_wheel_distance_l = get_word();
-				uint32_t tmp_wheel_distance = ((uint32_t)tmp_wheel_distance_h << 16) | tmp_wheel_distance_l;
-				
-				float wheel_R = tmp_wheel_R;
-				wheel_R /= 1000.0f;
-				
-				float wheel_distance = tmp_wheel_distance;
-				wheel_distance /= 1000.0f;
-				
-				//calculate_K(wheel_R, wheel_distance);
-				c_wheel_r1 = wheel_R;
-				c_wheel_r2 = wheel_R;
-				c_wheel_distance = wheel_distance;
-				*/
 				break;
 			}
 				// read status and position
-			case 'P':
+			case CMD_SEND_STATUS:
 				send_status_and_position();
 				break;
 
-			case 'p':
-				set_status_update_interval(get_word());
-				break;
-
 				// set speed; Vmax(0-255)
-			case 'V':
+			case CMD_SET_SPEED:
 				set_speed(get_byte());
 				break;
 
-			case 'r': {
+			case CMD_SET_ROTATION_SPEED: {
 				uint8_t max_speed = get_byte(); 
 				uint8_t max_accel = get_byte(); 
 				set_rotation_speed(max_speed, max_accel);
@@ -189,7 +146,7 @@ int main(void)
 			}
 				
 				// move forward [mm]
-			case 'D':
+			case CMD_FORWARD:
 				tmp = get_word();
 				v = get_byte();
 
@@ -199,7 +156,7 @@ int main(void)
 				break;
 
 				// relative angle [degrees]
-			case 'T':
+			case CMD_RELATIVE_ROTATE:
 				tmp = get_word();
 
 				motor_init();
@@ -207,7 +164,7 @@ int main(void)
 				break;
 				
 				// absolute angle [degrees]
-			case 'A':
+			case CMD_ABSOLUTE_ROTATE:
 				tmp = get_word();
 
 				motor_init();
@@ -216,7 +173,7 @@ int main(void)
 				break;
 
 				// rotate to and then move to point (Xc, Yc, v, direction) [mm]
-			case 'G':
+			case CMD_TURN_AND_GO:
 				
 				tmpX = get_word();
 				tmpY = get_word();
@@ -227,7 +184,7 @@ int main(void)
 				turn_and_go(tmpX, tmpY, v, direction); //(x, y, end_speed, direction)
 				break;
 				     
-			case 'Q':
+			case CMD_CURVE:
 				tmpX = get_word();
 				tmpY = get_word();
 				
@@ -241,7 +198,7 @@ int main(void)
 				break;
 			
 				// x [mm], y [mm], direction {-1 - backwards, 0 - pick closest, 1 - forward}
-			case 'N': {
+			case CMD_MOVE_TO: {
 				tmpX = get_word();
 				tmpY = get_word();
 				int direction = get_byte();
@@ -255,34 +212,20 @@ int main(void)
 				break;
 			}
 				// stop
-			case 'S':
+			case CMD_HARD_STOP:
 				stop();
-
 				break;
 
 				// stop and kill PWM
-			case 's':
+			case CMD_SOFT_STOP:
 				motor_turn_off();
-
 				break;
 				
 				// reset position, status and speed
-			case 'R':
+			case CMD_RESET_DRIVER:
 				reset_driver();
 				break;
-			
-			case 'm':
-				motor_set_rate_of_change(get_word());
-				break;
 
-			case 'z':
-				set_stuck_off();
-				break;
-
-			case 'Z':
-				set_stuck_on();
-
-				break;
 			default:
 				force_status(STATUS_ERROR);
 				break;
