@@ -93,7 +93,12 @@ long maxl(long a, long b) {
 	return a > b ? a : b;
 }
 
-
+uint32_t uint32_log10(uint32_t v) {
+    return (v >= 1000000000u) ? 9 : (v >= 100000000u) ? 8 : 
+        (v >= 10000000u) ? 7 : (v >= 1000000u) ? 6 : 
+        (v >= 100000u) ? 5 : (v >= 10000u) ? 4 :
+        (v >= 1000u) ? 3 : (v >= 100u) ? 2 : (v >= 10u) ? 1u : 0u; 
+}
 
 void sin_cos(long theta, long *sint, long *cost) {
 	if(theta < SINUS_MAX) // 1st quadrant

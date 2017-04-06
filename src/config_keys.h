@@ -60,7 +60,7 @@ void config_set_b(int key, char value);
 void config_set_i(int key, int value);
 void config_set_f(int key, float value);
 
-inline void config_load_defaults(void) {
+static inline void config_load_defaults(void) {
 	config_set_b(CONF_DISTANCE_REGULATOR, 0);
 	config_set_b(CONF_ROTATION_REGULATOR, 0);
 	config_set_b(CONF_STUCK, 0);
@@ -70,9 +70,9 @@ inline void config_load_defaults(void) {
 	config_set_i(CONF_STUCK_ROTATION_JUMP, 0);
 	config_set_i(CONF_STUCK_DISTANCE_MAX_FAIL_COUNT, 0);
 	config_set_i(CONF_STUCK_ROTATION_MAX_FAIL_COUNT, 0);
-	config_set_f(CONF_WHEEL_DISTANCE, 0.0f);
-	config_set_f(CONF_WHEEL_R1, 0.0f);
-	config_set_f(CONF_WHEEL_R2, 0.0f);
+	config_set_f(CONF_WHEEL_DISTANCE, 330.7f);
+	config_set_f(CONF_WHEEL_R1, 92.936704f);
+	config_set_f(CONF_WHEEL_R2, 92.936704f);
 	config_set_f(CONF_PID_D_P, 0.0f);
 	config_set_f(CONF_PID_D_D, 0.0f);
 	config_set_f(CONF_PID_R_P, 0.0f);

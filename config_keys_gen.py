@@ -2,9 +2,9 @@
 
 keys_float = {
 
-	'wheel_distance': 0,
-	'wheel_R1': 0,
-	'wheel_R2': 0,
+	'wheel_distance': 330.7,
+	'wheel_R1': 92.936704,
+	'wheel_R2': 92.936704,
 	
 	'PID_d_p': 0,
 	'PID_d_d': 0,
@@ -45,15 +45,19 @@ def gen_mcu_code():
 	
 	s += '\n\n'
 	
+	cnt = 0
 	s += 'enum ConfEnum { \n'
 	for i in keys_byte:
-		s += '\tCONF_' + i.upper() + ',\n'
+		s += '\tCONF_' + i.upper() + ' = ' + str(cnt) + ',\n'
+		cnt += 1
 	s += '\n'
 	for i in keys_int:
-		s += '\tCONF_' + i.upper() + ',\n'
+		s += '\tCONF_' + i.upper() + ' = ' + str(cnt) + ',\n'
+		cnt += 1
 	s += '\n'
 	for i in keys_float:
-		s += '\tCONF_' + i.upper() + ',\n'
+		s += '\tCONF_' + i.upper() + ' = ' + str(cnt) + ',\n'
+		cnt += 1
 		
 	s += '};\n'
 	
@@ -74,7 +78,7 @@ def gen_mcu_code():
 		 'void config_set_i(int key, int value);\n' + \
 		 'void config_set_f(int key, float value);\n\n'
 	
-	s += 'inline void config_load_defaults(void) {\n'
+	s += 'static inline void config_load_defaults(void) {\n'
 	for kv in keys_byte.items():
 		s += '\tconfig_set_b(CONF_' + kv[0].upper() + ', ' + str(int(kv[1]) & 0xff) + ');\n'
 		
@@ -89,9 +93,23 @@ def gen_mcu_code():
 	print(s)
 
 def gen_js_code():
-	pass
-
+	s = '// THIS FILE IS GENERATED WITH PYTHON SCRIPT "config_keys_gen.py"\n'
+	cnt = 0
+	for i in keys_byte:
+		s += 'static get CONFIG_' + i.upper() + '() { return ' + str(cnt) + '; }' + '\n'
+		cnt += 1
+	s += '\n'
+	for i in keys_int:
+		s += 'static get CONFIG_' + i.upper() + '() { return ' + str(cnt) + '; }' + '\n'
+		cnt += 1
+	s += '\n'
+	for i in keys_float:
+		s += 'static get CONFIG_' + i.upper() + '() { return ' + str(cnt) + '; }' + '\n'
+		cnt += 1
+	print(s)
 
 import sys
 if sys.argv[-1] == 'mcu':
 	gen_mcu_code()
+elif sys.argv[-1] == 'js':
+	gen_js_code()

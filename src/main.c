@@ -10,6 +10,7 @@
 #include "motor.h"
 #include "encoder.h"
 #include "timer.h"
+#include "config.h"
 #include <libpic30.h>
 #include <stdint.h>
 #include <p33FJ128MC802.h>
@@ -17,6 +18,9 @@
 #pragma config FWDTEN = OFF, \
 			   FNOSC = FRCPLL
 
+// static uint32_t load_uint32_bigendian(uint8_t* s) {
+	// return (((uint32_t)s[0]) << 24) | (((uint32_t)s[1]) << 16) | (((uint32_t)s[2]) << 8) | ((uint32_t)s[3]);
+// }
 
 
 void port_init(void)
@@ -80,12 +84,15 @@ int main(void)
 
 	//INTCON1bits.NSTDIS = 1; // disable recursive interrupts?
 
+	config_init();
 	port_init();
 	uart_init(57600);
 	timer_init();
 	encoder_init();
-	
 	motor_init();
+	
+	regulator_init();
+	config_load_defaults();
 	
 	reset_driver();
 
@@ -109,10 +116,36 @@ int main(void)
 				break;
 				
 			case 'c':
-				set_control_flags(get_byte());
+				//set_control_flags(get_byte());
+				
+				config_load(pkt->size, pkt->data);
+				/*
+				config_set_as_uint32(pkt->data[0], load_uint32_bigendian(pkt->data+1));
+				start_packet('C');
+					put_byte(pkt->data[0]);
+					put_byte(pkt->data[1]);
+					put_byte(pkt->data[2]);
+					put_byte(pkt->data[3]);
+					put_byte(pkt->data[4]);
+				end_packet();
+				
+				
+				uint32_t val = config_get_as_uint32(pkt->data[0]);
+				start_packet('c');
+					put_word(val >> 16);
+					put_word(val);
+				end_packet();
+				*/
 				break;
 			
 			case 'C': {
+				int key = get_byte();
+				uint32_t val = config_get_as_uint32(key);
+				start_packet('C');
+					put_word(val >> 16);
+					put_word(val);
+				end_packet();
+				/*
 				uint16_t tmp_wheel_R_h = get_word();
 				uint16_t tmp_wheel_R_l = get_word();
 				uint32_t tmp_wheel_R = ((uint32_t)tmp_wheel_R_h << 16) | tmp_wheel_R_l;
@@ -127,7 +160,11 @@ int main(void)
 				float wheel_distance = tmp_wheel_distance;
 				wheel_distance /= 1000.0f;
 				
-				calculate_K(wheel_R, wheel_distance);
+				//calculate_K(wheel_R, wheel_distance);
+				c_wheel_r1 = wheel_R;
+				c_wheel_r2 = wheel_R;
+				c_wheel_distance = wheel_distance;
+				*/
 				break;
 			}
 				// read status and position

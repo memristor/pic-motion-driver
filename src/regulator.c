@@ -2,6 +2,7 @@
 #include "uart.h"
 #include "motor.h"
 #include "encoder.h"
+#include "config.h"
 #include <stdint.h>
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
@@ -13,6 +14,7 @@ float K2;
 
 float R_wheel;
 float wheel_distance;
+double wheel_correction_coeff = 1.0;
 
 /*
 	vmax = change of distance / ms
@@ -128,10 +130,10 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	 		  can be fixed by resetting values when crosses some value, but maintain references
 			  and orientation
 	*/
-	L = (positionR + positionL*1.0075320083454653) / 2;
+	L = (positionR*wheel_correction_coeff + positionL) / 2;
 
 	// FIXME: rotating too much can cause overflow
-	orientation = (positionR - positionL*1.0075320083454653);
+	orientation = (positionR*wheel_correction_coeff - positionL);
 	
 	if (orientation > 0)
 	{
@@ -278,7 +280,7 @@ void reset_driver(void)
 {
 	positionR = positionL = 0;
 	L = orientation = 0;
-
+	
 	motor_init();
 	set_speed(0x32);
 	set_position(0, 0, 0);
@@ -1090,11 +1092,16 @@ void reset_stuck() {
 	}
 }
 
+void regulator_init(void) {
+	config_on_change(CONF_WHEEL_R1, calculate_K);
+	config_on_change(CONF_WHEEL_R2, calculate_K);
+	config_on_change(CONF_WHEEL_DISTANCE, calculate_K);
+}
 
-
-void calculate_K(float _wheel_R, float _wheel_distance) {
-	R_wheel = _wheel_R;
-	wheel_distance = _wheel_distance;
+void calculate_K() {
+	wheel_distance = c_wheel_distance;
+	R_wheel = c_wheel_r1;
+	wheel_correction_coeff = (c_wheel_r2 / c_wheel_r1);
 	K1 = (long)(4.0*2048.0 * wheel_distance / (R_wheel / 2.0));
 	K2 = (float)(4.0*2048.0 / (R_wheel * PI));
 }

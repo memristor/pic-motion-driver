@@ -99,8 +99,9 @@ enum State
 
 void set_control_flags(uint8_t flags);
 
+void regulator_init(void);
 void reset_driver(void);
-void reset_stuck();
+void reset_stuck(void);
 
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction);
 void forward(int length, unsigned char end_speed);
@@ -116,7 +117,7 @@ void set_rotation_speed(unsigned char max_speed, unsigned char max_accel);
 void set_position(int X, int Y, int orientation);
 
 void send_status_and_position(void);
-void report_status();
+void report_status(void);
 enum State get_status(void);
 void force_status(enum State);
 void set_status_update_interval(int miliseconds);
@@ -124,6 +125,6 @@ void set_status_update_interval(int miliseconds);
 void smooth_stop(void);
 void set_stuck_on(void);
 void set_stuck_off(void);
-void calculate_K(float _wheel_R, float _wheel_distance);
+void calculate_K();
 #endif	/* REGULACIJA_H */
 

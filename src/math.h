@@ -1,6 +1,6 @@
 #ifndef MATH_H
 #define MATH_H
-
+#include <stdint.h>
 
 #define SINUS_MAX 8192u
 #define SINUS_AMPLITUDE 0x7fff
@@ -26,6 +26,8 @@ extern inline float minf(float a, float b);
 extern inline float maxf(float a, float b);
 extern inline long minl(long a, long b);
 extern inline long maxl(long a, long b);
+
+uint32_t uint32_log10(uint32_t v);
 
 void sin_cos(long theta, long *sint, long *cost);
 

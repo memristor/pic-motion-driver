@@ -29,6 +29,9 @@ test.elf: $(obj)
 config:
 	python3 config_keys_gen.py mcu > src/config_keys.h
 
+js:
+	python3 config_keys_gen.py js > config_const.js
+
 clean:
 	rm -f src/*.o
 	rm -f test.elf test.hex
