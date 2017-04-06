@@ -9,6 +9,7 @@ src := \
 	src/motor.c \
 	src/math.c \
 	src/regulator.c \
+	src/config.c \
 
 
 obj := $(patsubst %.c,%.o,$(src))
@@ -17,10 +18,16 @@ test.hex: test.elf
 	$(TOOLCHAIN)bin2hex test.elf
 
 test.elf: $(obj)
-	$(TOOLCHAIN)gcc $^ -o $@ -T p33FJ128MC802.gld -mcpu=33FJ128MC802 -omf=elf  -Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-sections,--data-init,--pack-data,--handles,--isr,--no-gc-sections,--fill-upper=0,--stackguard=16,--library-path="..",--no-force-link,--smart-io
+	$(TOOLCHAIN)gcc $^ -o $@ -T p33FJ128MC802.gld -mcpu=33FJ128MC802 -omf=elf \
+		-Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-sections,\
+		--data-init,--pack-data,--handles,--isr,--no-gc-sections,--fill-upper=0,\
+		--stackguard=16,--library-path="..",--no-force-link,--smart-io
 
 %.o: %.c
 	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
+
+config:
+	python3 config_keys_gen.py mcu > src/config_keys.h
 
 clean:
 	rm -f src/*.o

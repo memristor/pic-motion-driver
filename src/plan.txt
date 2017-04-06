@@ -5,7 +5,7 @@ todo:
 	+ refactor code
 	+ periodically send status on request
 	+ uart packet protocol
-		- optional arguments for commands
+		+ optional arguments for commands
 	+ general stuck condition in regulator
 		; sudden increase in error above jump error threshold => stuck (save engines, sudden spike in current can destroy them)
 		; reference difference exist but encoder is not detecting expected changes => stuck
@@ -18,18 +18,12 @@ todo:
 move_to command (N)
 	+ calculate optimal curve within given radius in which robot is allowed to rotate (smaller radius => steeper curve and will slow down
 		and transfer all its max speed into rotation)
-		; needed data
+		- needed data
 			- max acceleration/deceleration speed
 			- max rotation acceleration/deceleration speed
 			- max rotation speed (limited due to inertia)
 
 	- small distances smooth
-	- soft stop
-	- path module
-		- update position
-		- bezier interpolate
-		- add points
-		- flush
-	- hard movement
-	- bezier
+	- CAN support
+	+ smooth stop
 	- config

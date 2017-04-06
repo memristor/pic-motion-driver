@@ -225,7 +225,6 @@ int main(void)
 
 				// stop and kill PWM
 			case 's':
-				stop();
 				motor_turn_off();
 
 				break;

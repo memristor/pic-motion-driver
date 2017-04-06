@@ -14,11 +14,15 @@ float K2;
 float R_wheel;
 float wheel_distance;
 
+/*
+	vmax = change of distance / ms
+	accel = change of vmax / ms
+*/
 static float vmax, accel;
 
 /*
-	omega - arc length / ms = wheel_distance * angle
-	alpha - omega change / ms
+	omega = arc length / ms = wheel_distance * change of angle
+	alpha = omega change / ms
 */
 static float omega, alpha;
 
@@ -69,27 +73,20 @@ long inc_angle_range_fix(long angle) {
 	return angle;
 }
 
+long inc_angle_diff(long a, long b) {
+	long d = a - b;
+	if(d > K1/2)
+		d -= K1;
+	else if(d < -K1/2)
+		d += K1;
+	return d;
+}
+
 float get_distance_to(long x, long y) {
 	return sqrt((x-X)*(x-X) + (y-Y)*(y-Y));
 }
 
 // ------------------------------------------
-
-void reset_stuck() {
-	prev_orientation = orientation;
-	prev_L = L;
-	t_ref_fail_count = 0;
-	d_ref_fail_count = 0;
-	prev_rotation_error = 0;
-	prev_distance_error = 0;
-	if(control_flags & CONTROL_FLAG_STUCK) {
-		control_flags &= ~CONTROL_FLAG_NO_DISTANCE_REGULATOR & ~CONTROL_FLAG_NO_ROTATION_REGULATOR &
-			~CONTROL_FLAG_STUCK;
-	}
-}
-
-
-
 
 
 // --------------------------------------------------------------
@@ -131,10 +128,10 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	 		  can be fixed by resetting values when crosses some value, but maintain references
 			  and orientation
 	*/
-	L = (positionR + positionL) / 2;
+	L = (positionR + positionL*1.0075320083454653) / 2;
 
 	// FIXME: rotating too much can cause overflow
-	orientation = (positionR - positionL);
+	orientation = (positionR - positionL*1.0075320083454653);
 	
 	if (orientation > 0)
 	{
@@ -219,9 +216,9 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		
 	}
 	prev_distance_error = error;
-	//
+	// -------------------------------------------
 
-	// ------------ rotation regulator -------------
+	// ------------[ rotation regulator ]-------------
 	angular_speed = vR - vL; // angular speed [inc/ms]
 
 	error = ((long)orientation - t_ref) % K1;
@@ -252,14 +249,13 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		
 		// if robot stuck, then shut down engines
 		if(current_status == STATUS_STUCK) {
-			control_flags |= CONTROL_FLAG_NO_DISTANCE_REGULATOR | CONTROL_FLAG_NO_ROTATION_REGULATOR;
+			control_flags |= CONTROL_FLAG_STUCK | CONTROL_FLAG_NO_DISTANCE_REGULATOR | CONTROL_FLAG_NO_ROTATION_REGULATOR;
 			motor_turn_off();
-			control_flags |= CONTROL_FLAG_STUCK;
 		}
 	}
 	
 	prev_rotation_error = error;
-	//
+	// -------------------------------------------
 	
 	if(control_flags & CONTROL_FLAG_NO_DISTANCE_REGULATOR) {
 		regulator_distance = 0;
@@ -871,14 +867,7 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	current_status = STATUS_IDLE;
 }
 
-long inc_angle_diff(long a, long b) {
-	long d = a - b;
-	if(d > K1/2)
-		d -= K1;
-	else if(d < -K1/2)
-		d += K1;
-	return d;
-}
+
 
 
 
@@ -948,8 +937,7 @@ void move_to(long x, long y, char direction, int radius) {
 	{
 		if(get_command() == ERROR)
 			return;
-			
-		wait_for_regulator();
+				
 		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
 		long orient = orientation;
 		
@@ -984,7 +972,7 @@ void move_to(long x, long y, char direction, int radius) {
 					d_ref = L;
 					break;
 				}
-			} else if(abs_speed < v) {
+			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10)|| abs_speed < v) {
 				speed = dval(ss, minf(abs_speed+accel, vmax));
 			} else if(abs_speed > v) {
 				speed = dval(ss, maxf(0.0f, abs_speed-accel));
@@ -1016,184 +1004,11 @@ void move_to(long x, long y, char direction, int radius) {
 		
 		d_ref = D;
 		t_ref = R;
-	}
-	current_status = STATUS_IDLE;
-}
-
-/*
-		r < R
-			v+
-				vtarget = r * w
-				v = min(v + accel, vtarget, vmax)
-			w-
-				if r ~ 0
-					wtarget = 999
-				else
-					wtarget = v / r
-				w = max(w - alpha, wtarget)
-		r > R
-			v-
-				vtarget = r * w
-				v = max(v - accel, vtarget, 0)
-			w+
-				if r ~ 0
-					wtarget = 999
-				else
-					wtarget = v / r
-				w = min(w + alpha, wtarget, omega)
-
-		r ~ R
-			start increasing speed to max while maintaining ratio
-			
-			choose order
-				if accel < alpha
-					v+, w+ follows
-				else
-					w+, v+ follows
-					
-			
-			v+
-				v = min(v + accel, vmax)
-			w+
-				if(r ~ 0)
-					wtarget = 999
-				else
-					wtarget = v / r
-				w = min(w + alpha, wtarget, omega)
-
-		-----------------------------------------------------
-		anglediff ~ 0 => new phase
-			v+
-				v = min(v + accel, vmax)
-			
-			w -> 0
-				w = max(w - alpha, 0)
-				
-
-			calc end speed
-				r_after = ...
-				vend = r_after * omega
-
-		-------
-		calc when (distance) to start slowing down
-			if it needs triangle profile
-				a*t = vmax => t = ?
-				d = a*t^2/2
-				if dist >= 2d
-					trapezoid
-						a*t = vmax-vend => t = ?
-						dist = a * t^2/2
-				else
-					triangle
-						d = dist / 2
-						
-				
-		--------------
-		calc r
-			r = R/2
-
-*/
-
-
-void move_to_new(long x, long y, char direction, int radius) {
-	
-	float v = current_speed; /* [inc/ms] */
-	float w = angular_speed; /* [inc/ms] */
-	
-	// long long int Xdlong, Ydlong;
-	
-	long distance = d_ref;
-	long rotation = t_ref;
-	
-	// goal radius of rotation
-	int R = (radius) / (2*RAD_TO_INC_ANGLE(1));
-	
-	// TODO: if goal is inside radius => reduce radius
-	
-	float v_target;
-	float w_target;
-	
-	float r;
-	
-	// TODO: if facing wrong direction => rotation slowly -> 0, speed -> minimal needed for rotation, but stop when rotation is 0
-	
-	while(1) {
-		r = absf(v) / absf(w);
-		if(r < R) {
-			// v+
-			v_target = v * w;
-			v = min3f(v+accel, v_target, vmax);
-			
-			// w-
-			if(r <= 1) {
-				w_target = 999;
-			} else {
-				w_target = v / w;
-			}
-			
-			w = maxf(w-alpha, w_target);
-		} else if(r > R) {
-			// v-
-			v_target = r * w;
-			v = max3f(v-accel, v_target, 0);
-			
-			// w+
-			if(r < 1) {
-				w_target = 999;
-			} else {
-				w_target = v / r;
-			}
-			
-			w = min3f(w + alpha, w_target, omega);
-		} else if(absf(R - r) < 4) {
-			
-			if(accel < alpha) {
-				// v+, w+ follows
-				v = minf(v + accel, vmax);
-				
-				if(r < 1) {
-					w_target = 999;
-				} else {
-					w_target = v / r;
-				}
-				
-				w = min3f(w + alpha, w_target, omega);
-				
-			} else {
-				// w+, v+ follows
-				w = minf(w + alpha, omega);
-				
-				v_target = w * r;
-				v = min3f(v + accel, v_target, vmax);
-			}
-		}
-		
-		/* TODO:
-		 * 	 if goal is on circle => predict when needed to start slowing down and
-		 * 		if close to goal => start slowing down (while maintaining ratio)
-		 *   if close to facing goal => rotation slowly -> 0
-		 */
-		
-		distance += v;
-		rotation += w;
-		d_ref = distance;
-		t_ref = rotation;
 		
 		wait_for_regulator();
 	}
-	// TODO: what if goal is not on circle, but is close to it
-	// TODO: go forward to target, slow down
+	current_status = STATUS_IDLE;
 }
-
-void move_hard() {
-	/*
-	 * get closest point in interpolation starting from last
-	 * interpolations:
-	 *  1. ms => do actual calc (dynamic calc length)
-	 *  2. res => check for slowdowns, progress
-	 */
-}
-
 
 void stop(void)
 {
@@ -1261,6 +1076,20 @@ void set_stuck_on(void) {
 void set_stuck_off(void) {
 	control_flags |= CONTROL_FLAG_NO_STUCK;
 }
+
+void reset_stuck() {
+	prev_orientation = orientation;
+	prev_L = L;
+	t_ref_fail_count = 0;
+	d_ref_fail_count = 0;
+	prev_rotation_error = 0;
+	prev_distance_error = 0;
+	if(control_flags & CONTROL_FLAG_STUCK) {
+		control_flags &= ~CONTROL_FLAG_NO_DISTANCE_REGULATOR & ~CONTROL_FLAG_NO_ROTATION_REGULATOR &
+			~CONTROL_FLAG_STUCK;
+	}
+}
+
 
 
 void calculate_K(float _wheel_R, float _wheel_distance) {

@@ -11,8 +11,6 @@
 // odometry encoder wheel distance
 //#define wheel_distance 330.0
 
-
-
 /*
 	number of increments per full circle represents circumference of encoder wheel
 	it is here converted into arc length of circle with radius of wheel distance
@@ -64,11 +62,6 @@
 
 #define STUCK_DISTANCE_MAX_FAIL_COUNT 200
 #define STUCK_ROTATION_MAX_FAIL_COUNT 200
-
-// keep as rational number
-#define STUCK_DISTANCE_ERROR_RATIO 1/8
-#define STUCK_ROTATION_ERROR_RATIO 1/8
-//
 
 // --- regulator PD (proportional, differential) components, trial & error ---
 // depends on timer interrupt period
