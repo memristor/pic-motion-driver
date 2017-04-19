@@ -963,7 +963,7 @@ void move_to(long x, long y, char direction, int radius) {
 		
 		// speed
 		if(ss != direction) {
-			speed -= dval(direction, c_accel);
+			speed -= dval(ss, c_accel);
 			if(speed == 0.0f) {
 				speed += dval(direction, 0.1f);
 			}
