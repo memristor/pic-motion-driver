@@ -60,6 +60,8 @@ inline float config_get_f(int key) {
 }
 
 void config_set_i(int key, int value) {
+	int idx = key - CONFIG_INT_OFFSET;
+	if(idx < 0 || idx >= CONFIG_MAX_INTS) return;
 	config_ints[key-CONFIG_INT_OFFSET] = value;
 	ConfigCallback cb = config_callbacks[key];
 	if(cb != 0) {
@@ -67,8 +69,10 @@ void config_set_i(int key, int value) {
 	}
 }
 
-void config_set_b(int key, char value) {
-	config_bytes[key-CONFIG_BYTE_OFFSET] = value;
+void config_set_b(int key, int8_t value) {
+	int idx = key - CONFIG_BYTE_OFFSET;
+	if(idx < 0 || idx >= CONFIG_MAX_BYTES) return;
+	config_bytes[idx] = value;
 	ConfigCallback cb = config_callbacks[key];
 	if(cb != 0) {
 		cb();
@@ -76,7 +80,9 @@ void config_set_b(int key, char value) {
 }
 
 void config_set_f(int key, float value) {
-	config_floats[key-CONFIG_FLOAT_OFFSET] = value;
+	int idx = key - CONFIG_FLOAT_OFFSET;
+	if(idx < 0 || idx >= CONFIG_MAX_FLOATS) return;
+	config_floats[idx] = value;
 	ConfigCallback cb = config_callbacks[key];
 	if(cb != 0) {
 		cb();

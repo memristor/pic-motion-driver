@@ -28,7 +28,7 @@ extern inline float config_get_f(int key);
 
 void config_init(void);
 
-void config_set_b(int key, char value);
+void config_set_b(int key, int8_t value);
 void config_set_i(int key, int value);
 void config_set_f(int key, float value);
 void config_set_as_uint32(int key, uint32_t value);

@@ -66,7 +66,7 @@ enum ConfEnum {
 #define c_alpha config_floats[CONF_ALPHA-CONFIG_FLOAT_OFFSET]
 
 
-void config_set_b(int key, char value);
+void config_set_b(int key, int8_t value);
 void config_set_i(int key, int value);
 void config_set_f(int key, float value);
 
@@ -86,8 +86,8 @@ static inline void config_load_defaults(void) {
 	config_set_i(CONF_MOTOR_RATE_OF_CHANGE, 3200);
 	config_set_i(CONF_SEND_STATUS_INTERVAL, 0);
 	config_set_f(CONF_WHEEL_DISTANCE, 330.7f);
-	config_set_f(CONF_WHEEL_R1, 92.936704f);
-	config_set_f(CONF_WHEEL_R2, 92.936704f);
+	config_set_f(CONF_WHEEL_R1, 92.52f);
+	config_set_f(CONF_WHEEL_R2, 92.55f);
 	config_set_f(CONF_PID_D_P, 5.5f);
 	config_set_f(CONF_PID_D_D, 200.0f);
 	config_set_f(CONF_PID_R_P, 3.0f);

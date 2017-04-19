@@ -52,7 +52,7 @@ void port_init(void)
 int main(void)
 {
 	int tmpX, tmpY, tmp, tmpO;
-	calculate_K(92.936704f,330.7f);
+	// calculate_K(92.936704f,330.7f);
 	char command, v, direction, tmpSU;
 
 	/* Configure Oscillator to operate the device at 30Mhz

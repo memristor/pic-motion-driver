@@ -197,9 +197,10 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	regulator_distance = error * c_pid_d_p - c_pid_d_d * current_speed; // PD (proportional, differential) regulator
 
 	// ---------[ Distance Stuck Detection ]----------
-	if( c_enable_stuck ) {
+	
+	if( c_enable_stuck == 1 ) {
 		
-		if(absl(error-prev_distance_error) > c_stuck_distance_jump) {
+		if(absl(error-prev_distance_error) > MILIMETER_TO_INC(c_stuck_distance_jump)) {
 			current_status = STATUS_STUCK;
 		}
 		
@@ -213,6 +214,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		}
 		
 	}
+	
 	prev_distance_error = error;
 	// -------------------------------------------
 
@@ -231,9 +233,10 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	regulator_rotation = error * c_pid_r_p - (-angular_speed * c_pid_r_d); // PD (proportional, differential) regulator
 	
 	// ------------[ Rotation Stuck Detect ]---------------
-	if( c_enable_stuck ) {
+	
+	if( c_enable_stuck == 1 ) {
 		
-		if(absl(error-prev_rotation_error) > c_stuck_rotation_jump) {
+		if(absl(error-prev_rotation_error) > DEG_TO_INC_ANGLE(c_stuck_rotation_jump)) {
 			current_status = STATUS_STUCK;
 		}
 		
@@ -247,26 +250,28 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 		}
 		
 		// if robot stuck, then shut down engines
+		
 		if(current_status == STATUS_STUCK) {
 			c_stuck = 1;
 			c_distance_regulator = 0;
 			c_rotation_regulator = 0;
 			motor_turn_off();
 		}
+		
 	}
 	
 	prev_rotation_error = error;
 	// -------------------------------------------
 	
-	if(!c_distance_regulator) {
+	if(c_distance_regulator == 0) {
 		regulator_distance = 0;
 		d_ref = L;
 	}
-	if(!c_rotation_regulator) {
+	if(c_rotation_regulator == 0) {
 		regulator_rotation = 0;
 		t_ref = orientation;
 	}
-
+	
 	// ------ final PWM is result of superposition of 2 regulators --------
 
 	motor_left_set_power(regulator_distance - regulator_rotation);
@@ -1094,21 +1099,12 @@ void reset_stuck() {
 	}
 }
 
-void conv_distance_jump() {
-	c_stuck_distance_jump = MILIMETER_TO_INC(c_stuck_distance_jump);
-}
-
-void conv_rotation_jump() {
-	c_stuck_rotation_jump = DEG_TO_INC_ANGLE(c_stuck_rotation_jump);
-}
 
 void regulator_init(void) {
 	move_cmd_next.active = 0;
 	config_on_change(CONF_WHEEL_R1, calculate_K);
 	config_on_change(CONF_WHEEL_R2, calculate_K);
 	config_on_change(CONF_WHEEL_DISTANCE, calculate_K);
-	config_on_change(CONF_STUCK_DISTANCE_JUMP, conv_distance_jump);
-	config_on_change(CONF_STUCK_ROTATION_JUMP, conv_rotation_jump);
 	config_on_change(CONF_OMEGA, on_omega_change);
 	config_on_change(CONF_VMAX, on_vmax_change);
 	config_on_change(CONF_ACCEL, on_accel_change);

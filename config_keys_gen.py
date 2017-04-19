@@ -2,8 +2,8 @@
 
 keys_float = {
 	'wheel_distance': 330.7,
-	'wheel_R1': 92.936704,
-	'wheel_R2': 92.936704,
+	'wheel_R1': 92.52,
+	'wheel_R2': 92.55,
 	
 	'PID_d_p': 5.5,
 	'PID_d_d': 200,
@@ -104,7 +104,7 @@ def gen_mcu_code():
 	
 	s += '\n\n'
 	
-	s += 'void config_set_b(int key, char value);\n' + \
+	s += 'void config_set_b(int key, int8_t value);\n' + \
 		 'void config_set_i(int key, int value);\n' + \
 		 'void config_set_f(int key, float value);\n\n'
 	
