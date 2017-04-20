@@ -100,7 +100,7 @@ static inline void config_load_defaults(void) {
 	config_set_f(CONF_OMEGA, 50.0f);
 	config_set_f(CONF_ACCEL, 50.0f);
 	config_set_f(CONF_ALPHA, 50.0f);
-	config_set_f(CONF_SLOWDOWN, 0.8f);
+	config_set_f(CONF_SLOWDOWN, 1.0f);
 	config_set_f(CONF_ANGLE_SPEEDUP, 20.0f);
 }
 #define CMD_SET_CONFIG 'c'

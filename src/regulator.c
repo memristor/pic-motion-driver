@@ -893,7 +893,7 @@ void move_to(long x, long y, char direction, int radius) {
 	
 	float dist = get_distance_to(x,y);
 	
-	float v_div_w = MILIMETER_TO_INC( minf(dist, radius)/2.0f ) / RAD_TO_INC_ANGLE(1);
+	float v_div_w = (float)MILIMETER_TO_INC( minf(dist, radius)/2.0f ) / (float)RAD_TO_INC_ANGLE(1);
 	float w_div_v = 1.0f/v_div_w;
 	
 	float w;
@@ -971,7 +971,7 @@ void move_to(long x, long y, char direction, int radius) {
 			t = abs_speed/c_accel * c_slowdown;
 			if(abs_speed*t > MILIMETER_TO_INC(dist)) {
 				// slow down
-				if(dist > 5.0f) {
+				if(dist > 1.0f) {
 					speed = dval(ss, maxf(0.0f, abs_speed-c_accel ));
 				} else {
 					d_ref = L;
@@ -986,11 +986,12 @@ void move_to(long x, long y, char direction, int radius) {
 				} else {
 					speed = dval(ss, maxf(abs_speed-c_accel, virt_max));
 				}
-				
-			} else if(abs_speed < v) {
-				speed = dval(ss, minf(abs_speed+c_accel, v));
-			} else if(abs_speed > v) {
-				speed = dval(ss, maxf(v, abs_speed-c_accel));
+			} else {				
+				if(abs_speed < v) {
+					speed = dval(ss, minf(abs_speed+c_accel, v));
+				} else if(abs_speed > v) {
+					speed = dval(ss, maxf(v, abs_speed-c_accel));
+				}
 			}
 		}
 		
@@ -1001,7 +1002,7 @@ void move_to(long x, long y, char direction, int radius) {
 				rotation_speed += dval(signl(angle_diff), 0.1f);
 			}
 		} else {
-			if(abs_angle_diff > DEG_TO_INC_ANGLE(5)) {
+			if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
 				t = abs_rotation_speed/c_alpha;
 				if(abs_rotation_speed*t > abs_angle_diff) {
 					rotation_speed = dval(sr, maxf( abs_rotation_speed - c_alpha, 0 ));
