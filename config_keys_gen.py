@@ -15,6 +15,8 @@ keys_float = {
 	
 	'accel': 0x32,
 	'alpha': 0x32,
+	'slowdown': 0.8,
+	'angle_speedup': 20
 }
 
 keys_int = {

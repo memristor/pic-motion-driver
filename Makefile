@@ -10,6 +10,7 @@ src := \
 	src/math.c \
 	src/regulator.c \
 	src/config.c \
+	src/queue.c \
 
 
 obj := $(patsubst %.c,%.o,$(src))

@@ -499,6 +499,7 @@ static char get_command(void)
 // turn to point and move to it (Xd, Yd)
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 {
+	start_command();
 	long t, t0, t1, t2, t3;
 	long T1, T2, T3;
 	long L_dist, L0, L1, L2, L3;
@@ -509,7 +510,6 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 	
 	Xdlong = MILIMETER_TO_2INC(Xd);
 	Ydlong = MILIMETER_TO_2INC(Yd);
-
 	d_ref=L;
 	v0 = 0;
 	direction = (direction >= 0 ? 1 : -1);
@@ -968,19 +968,29 @@ void move_to(long x, long y, char direction, int radius) {
 				speed += dval(direction, 0.1f);
 			}
 		} else {
-			t = abs_speed/c_accel;
+			t = abs_speed/c_accel * c_slowdown;
 			if(abs_speed*t > MILIMETER_TO_INC(dist)) {
 				// slow down
-				if(dist > 1.0f) {
+				if(dist > 5.0f) {
 					speed = dval(ss, maxf(0.0f, abs_speed-c_accel ));
 				} else {
 					d_ref = L;
 					break;
 				}
-			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(10)|| abs_speed < v) {
-				speed = dval(ss, minf(abs_speed+c_accel, c_vmax));
+			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(c_angle_speedup)) {
+				// 0 -> vmax, 25 -> v
+				// vmax-v / 25 + v
+				float virt_max = ((v - c_vmax) * abs_angle_diff / DEG_TO_INC_ANGLE(c_angle_speedup)) + c_vmax;
+				if(abs_speed < virt_max) {
+					speed = dval(ss, minf(abs_speed+c_accel, virt_max));
+				} else {
+					speed = dval(ss, maxf(abs_speed-c_accel, virt_max));
+				}
+				
+			} else if(abs_speed < v) {
+				speed = dval(ss, minf(abs_speed+c_accel, v));
 			} else if(abs_speed > v) {
-				speed = dval(ss, maxf(0.0f, abs_speed-c_accel));
+				speed = dval(ss, maxf(v, abs_speed-c_accel));
 			}
 		}
 		
@@ -991,7 +1001,7 @@ void move_to(long x, long y, char direction, int radius) {
 				rotation_speed += dval(signl(angle_diff), 0.1f);
 			}
 		} else {
-			if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
+			if(abs_angle_diff > DEG_TO_INC_ANGLE(5)) {
 				t = abs_rotation_speed/c_alpha;
 				if(abs_rotation_speed*t > abs_angle_diff) {
 					rotation_speed = dval(sr, maxf( abs_rotation_speed - c_alpha, 0 ));

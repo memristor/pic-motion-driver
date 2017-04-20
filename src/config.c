@@ -32,15 +32,18 @@ void config_load(int length, uint8_t* stream) {
 uint32_t config_get_as_uint32(int key) {
 	if(key >= CONFIG_MAX) return 0;
 	
+	float val;
 	if(key < CONFIG_INT_OFFSET) {
-		return config_get_b(key);
+		val = config_get_b(key);
 	} else if(key < CONFIG_FLOAT_OFFSET) {
-		return config_get_i(key);
+		val = config_get_i(key);
 	} else { // float offset
-		uint32_t exp = EXPONENT_BITS;
-		uint32_t val = config_get_f(key) * powf(10.0f, exp);
-		return (val << exp) | (exp & ((1u<<EXPONENT_BITS)-1));
+		val = config_get_f(key);
 	}
+	
+	uint32_t exp = EXPONENT_BITS;
+	uint32_t r = val * powf(10.0f, exp);
+	return (r << exp) | (exp & ((1u<<EXPONENT_BITS)-1));
 }
 
 void config_on_change(int key, ConfigCallback callback) {
@@ -91,15 +94,15 @@ void config_set_f(int key, float value) {
 
 
 void config_set_as_uint32(int key, uint32_t value) {
+	float exp = (value & ((1u<<EXPONENT_BITS)-1));
+	float val = (value >> EXPONENT_BITS) / powf(10.0f, exp);
 	if(key >= CONFIG_MAX) return;
 	if(key < CONFIG_INT_OFFSET) {
-		config_bytes[key-CONFIG_BYTE_OFFSET] = value;
+		config_bytes[key-CONFIG_BYTE_OFFSET] = val;
 	} else if(key < CONFIG_FLOAT_OFFSET) {
-		config_ints[key-CONFIG_INT_OFFSET] = value;	
+		config_ints[key-CONFIG_INT_OFFSET] = val;	
 	} else { // float offset
-		float exp = (value & ((1u<<EXPONENT_BITS)-1));
-		config_floats[key-CONFIG_FLOAT_OFFSET] = (value >> EXPONENT_BITS);
-		config_floats[key-CONFIG_FLOAT_OFFSET] /= powf(10.0f, exp);
+		config_floats[key-CONFIG_FLOAT_OFFSET] = val;
 	}
 	
 	ConfigCallback cb = config_callbacks[key];

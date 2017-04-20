@@ -1,3 +1,4 @@
+#include "queue.h"
 #include "uart.h"
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
@@ -279,7 +280,7 @@ uint16_t get_word(void) {
 }
 
 // --------------[ TX packet ]----------------- 
-#define NUM_TX_PACKETS 6
+#define NUM_TX_PACKETS 10
 
 enum PacketStatus {
 	free_to_use,
@@ -292,16 +293,19 @@ static volatile Packet* tx_pkt_sending = 0;
 
 static int8_t tx_pkt_stack_num = -1;
 static Packet* tx_pkt_stack[NUM_TX_PACKETS];
-
 static Packet tx_pkt[NUM_TX_PACKETS];
 static Packet* tx_writing_pkt = 0;
 static volatile uint8_t tx_num_free_packets = NUM_TX_PACKETS;
+
+static void* pkt_queue_data[NUM_TX_PACKETS];
+Queue pkt_queue;
 
 static void init_tx_packets(void) {
 	int i;
 	for(i=0; i < NUM_TX_PACKETS; i++) {
 		tx_pkt[i].status = free_to_use;
 	}
+	queue_init(&pkt_queue, pkt_queue_data, NUM_TX_PACKETS);
 }
 
 void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
@@ -316,16 +320,10 @@ void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
 	}
 	
 	if(!tx_pkt_sending) {
-		int i;
-		for(i=0; i < NUM_TX_PACKETS; i++) {
-			if(tx_pkt[i].status == ready_to_send) {
-				tx_pkt[i].status = sending;
-				tx_pkt_sending = &tx_pkt[i];
-				// packet is at least PACKET_HEADER size which is bigger than 1, so no need for checking
-				// whether packet is fully sent
-				U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
-				break;
-			}
+		if(!queue_empty(&pkt_queue)) {
+			tx_pkt_sending = queue_pop(&pkt_queue);
+			tx_pkt_sending->status = sending;
+			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
 		}
 	}
 	
@@ -336,14 +334,11 @@ inline char can_send_packet(void) {
 	return tx_num_free_packets > 1; // 1 packet is reserved for ACK message
 }
 
+
+
 void start_packet(uint8_t type) {
 	tx_pkt_stack_num++;
 	if(tx_pkt_stack_num < NUM_TX_PACKETS && tx_num_free_packets > 0) {
-		
-		SRbits.IPL = 7;
-		tx_num_free_packets--;
-		SRbits.IPL = 0;
-		
 		tx_writing_pkt = 0;
 		int i;
 		for(i=0; i < NUM_TX_PACKETS; i++) {
@@ -359,6 +354,10 @@ void start_packet(uint8_t type) {
 		tx_writing_pkt->status = writing_packet;
 		tx_writing_pkt->type = type;
 		tx_writing_pkt->size = 0;
+		
+		SRbits.IPL = 7;
+		tx_num_free_packets--;
+		SRbits.IPL = 0;
 	}
 }
 
@@ -393,6 +392,8 @@ void end_packet(void) {
 			tx_pkt_sending = tx_writing_pkt;
 			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
 			tx_writing_pkt->status = sending;
+		} else {
+			queue_push(&pkt_queue, tx_writing_pkt);
 		}
 	}
 	

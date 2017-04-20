@@ -3,7 +3,7 @@
 
 #define CONFIG_MAX_BYTES 7
 #define CONFIG_MAX_INTS 7
-#define CONFIG_MAX_FLOATS 11
+#define CONFIG_MAX_FLOATS 13
 
 
 enum ConfEnum { 
@@ -34,6 +34,8 @@ enum ConfEnum {
 	CONF_OMEGA = 22,
 	CONF_ACCEL = 23,
 	CONF_ALPHA = 24,
+	CONF_SLOWDOWN = 25,
+	CONF_ANGLE_SPEEDUP = 26,
 };
 
 
@@ -64,6 +66,8 @@ enum ConfEnum {
 #define c_omega config_floats[CONF_OMEGA-CONFIG_FLOAT_OFFSET]
 #define c_accel config_floats[CONF_ACCEL-CONFIG_FLOAT_OFFSET]
 #define c_alpha config_floats[CONF_ALPHA-CONFIG_FLOAT_OFFSET]
+#define c_slowdown config_floats[CONF_SLOWDOWN-CONFIG_FLOAT_OFFSET]
+#define c_angle_speedup config_floats[CONF_ANGLE_SPEEDUP-CONFIG_FLOAT_OFFSET]
 
 
 void config_set_b(int key, int8_t value);
@@ -96,6 +100,8 @@ static inline void config_load_defaults(void) {
 	config_set_f(CONF_OMEGA, 50.0f);
 	config_set_f(CONF_ACCEL, 50.0f);
 	config_set_f(CONF_ALPHA, 50.0f);
+	config_set_f(CONF_SLOWDOWN, 0.8f);
+	config_set_f(CONF_ANGLE_SPEEDUP, 20.0f);
 }
 #define CMD_SET_CONFIG 'c'
 #define CMD_GET_CONFIG 'C'
