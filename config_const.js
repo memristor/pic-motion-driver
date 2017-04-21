@@ -5,28 +5,29 @@ static get CONFIG_STUCK() { return 3; }
 static get CONFIG_DEBUG() { return 4; }
 static get CONFIG_STATUS_CHANGE_REPORT() { return 5; }
 static get CONFIG_KEEP_COUNT() { return 6; }
+static get CONFIG_TMR() { return 7; }
 
-static get CONFIG_STUCK_DISTANCE_JUMP() { return 7; }
-static get CONFIG_STUCK_ROTATION_JUMP() { return 8; }
-static get CONFIG_STUCK_DISTANCE_MAX_FAIL_COUNT() { return 9; }
-static get CONFIG_STUCK_ROTATION_MAX_FAIL_COUNT() { return 10; }
-static get CONFIG_MOTOR_SPEED_LIMIT() { return 11; }
-static get CONFIG_MOTOR_RATE_OF_CHANGE() { return 12; }
-static get CONFIG_SEND_STATUS_INTERVAL() { return 13; }
+static get CONFIG_STUCK_DISTANCE_JUMP() { return 8; }
+static get CONFIG_STUCK_ROTATION_JUMP() { return 9; }
+static get CONFIG_STUCK_DISTANCE_MAX_FAIL_COUNT() { return 10; }
+static get CONFIG_STUCK_ROTATION_MAX_FAIL_COUNT() { return 11; }
+static get CONFIG_MOTOR_SPEED_LIMIT() { return 12; }
+static get CONFIG_MOTOR_RATE_OF_CHANGE() { return 13; }
+static get CONFIG_SEND_STATUS_INTERVAL() { return 14; }
 
-static get CONFIG_WHEEL_DISTANCE() { return 14; }
-static get CONFIG_WHEEL_R1() { return 15; }
-static get CONFIG_WHEEL_R2() { return 16; }
-static get CONFIG_PID_D_P() { return 17; }
-static get CONFIG_PID_D_D() { return 18; }
-static get CONFIG_PID_R_P() { return 19; }
-static get CONFIG_PID_R_D() { return 20; }
-static get CONFIG_OMEGA() { return 21; }
+static get CONFIG_WHEEL_DISTANCE() { return 15; }
+static get CONFIG_WHEEL_R1() { return 16; }
+static get CONFIG_WHEEL_R2() { return 17; }
+static get CONFIG_PID_D_P() { return 18; }
+static get CONFIG_PID_D_D() { return 19; }
+static get CONFIG_PID_R_P() { return 20; }
+static get CONFIG_PID_R_D() { return 21; }
 static get CONFIG_VMAX() { return 22; }
-static get CONFIG_SPEED() { return 23; }
-static get CONFIG_RSPEED() { return 24; }
-static get CONFIG_ACCEL() { return 25; }
-static get CONFIG_ALPHA() { return 26; }
+static get CONFIG_OMEGA() { return 23; }
+static get CONFIG_ACCEL() { return 24; }
+static get CONFIG_ALPHA() { return 25; }
+static get CONFIG_SLOWDOWN() { return 26; }
+static get CONFIG_ANGLE_SPEEDUP() { return 27; }
 
 
 static var config_names_enum = [
@@ -37,6 +38,7 @@ static var config_names_enum = [
 	'CONFIG_DEBUG',
 	'CONFIG_STATUS_CHANGE_REPORT',
 	'CONFIG_KEEP_COUNT',
+	'CONFIG_TMR',
 	'CONFIG_STUCK_DISTANCE_JUMP',
 	'CONFIG_STUCK_ROTATION_JUMP',
 	'CONFIG_STUCK_DISTANCE_MAX_FAIL_COUNT',
@@ -51,12 +53,12 @@ static var config_names_enum = [
 	'CONFIG_PID_D_D',
 	'CONFIG_PID_R_P',
 	'CONFIG_PID_R_D',
-	'CONFIG_OMEGA',
 	'CONFIG_VMAX',
-	'CONFIG_SPEED',
-	'CONFIG_RSPEED',
+	'CONFIG_OMEGA',
 	'CONFIG_ACCEL',
 	'CONFIG_ALPHA',
+	'CONFIG_SLOWDOWN',
+	'CONFIG_ANGLE_SPEEDUP',
 ];
 
 static get CMD_SET_CONFIG() { return 'c'; }

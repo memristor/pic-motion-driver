@@ -87,7 +87,7 @@ float get_distance_to(long x, long y) {
 
 
 // --------------------------------------------------------------
-
+volatile int check = 0;
 // **********************************************************************
 // ODOMETRY AND REGULATION (every 1ms)
 // enters periodically every 1ms, and can last 30000 cpu cycles max (but recommended to last at most half of that, 15000 cycles)
@@ -95,6 +95,7 @@ float get_distance_to(long x, long y) {
 void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 {
 	sys_time++;
+	check++;
 	IFS0bits.T1IF = 0;    // Clear Timer interrupt flag 
 
 	static float vR;
@@ -171,12 +172,7 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	X = DOUBLED_INC_TO_MILIMETER(Xlong);
 	Y = DOUBLED_INC_TO_MILIMETER(Ylong);
 	
-	// send status periodically if requested
-	if(c_send_status_interval > 0 && ++send_status_counter > c_send_status_interval) {
-		send_status_counter = 0;
-		send_status_and_position();
-	}
-
+	
 	// REGULATOR
 	//*************************************************************************
 	
@@ -273,10 +269,22 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	}
 	
 	// ------ final PWM is result of superposition of 2 regulators --------
-
+	if(check > 1) {
+		start_packet('O');
+			put_word(check);
+		end_packet();
+	}
 	motor_left_set_power(regulator_distance - regulator_rotation);
 	motor_right_set_power(regulator_distance + regulator_rotation);
+	
+	// send status periodically if requested
+	if(c_send_status_interval > 0 && ++send_status_counter > c_send_status_interval) {
+		send_status_counter = 0;
+		send_status_and_position();
+	}
 
+
+	check--;
 	IFS0bits.T1IF = 0;    // Clear Timer interrupt flag 
 }
 
@@ -356,12 +364,16 @@ void set_speed_accel(float v)
 {
 	c_vmax = v;
 	c_omega = 2 * c_vmax;
+	c_accel = c_vmax / ((350-500) * (v / VMAX) + 500);
+	
+	/*
 	if(c_vmax < (VMAX * 161 / 256))
 		// in 500 ms speeds up to c_vmax
-		c_accel = c_vmax / (500 /*[ms]*/);
+		c_accel = c_vmax / (500 );
 	else
 		// in 375 ms speeds up to c_vmax
-		c_accel = c_vmax / (375 /*[ms]*/);
+		c_accel = c_vmax / (375);
+	*/
 	c_alpha = 2 * c_accel;
 }
 
@@ -504,7 +516,7 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 	long T1, T2, T3;
 	long L_dist, L0, L1, L2, L3;
 	long D0, D1, D2;
-	float v_vrh, v_end, v0;
+	float v_vrh, v_end, v_ref, v0;
 	int length, angle;
 	long long int Xdlong, Ydlong;
 	
@@ -594,15 +606,17 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 
 		if(t <= t1) // acceleration phase
 		{
+			v_ref = v0 + c_accel * (t-t0);
 			D1 = D2 = d_ref = D0 + direction * (v0 * (t-t0) + c_accel * (t-t0)*(t-t0)/2);
 		}
 		else if(t <= t2) // constant speed phase
 		{
+			v_ref = c_vmax;
 			D2 = d_ref = D1 + direction * c_vmax * (t-t1);
 		}
 		else if(t <= t3) // decceleration phase
 		{
-			d_ref = D2 + direction * (c_vmax * (t-t2) - c_accel * (t-t2) * (t-t2) / 2);
+			d_ref = D2 + direction * (v_ref * (t-t2) - c_accel * (t-t2) * (t-t2) / 2);
 		}
 	}
 	current_status = STATUS_IDLE;
@@ -670,18 +684,18 @@ void forward(int length, unsigned char end_speed)
 		
 		if(t <= t1)
 		{
-			// v_ref = v0 + c_accel * (t-t0);
+			v_ref = v0 + c_accel * (t-t0);
 			D1 = D2 = d_ref = D0 + sign * (v0 * (t-t0) + c_accel * (t-t0)*(t-t0)/2);
 		}
 		else if(t <= t2)
 		{
-			// v_ref = c_vmax;
+			v_ref = c_vmax;
 			D2 = d_ref = D1 + sign * c_vmax * (t-t1);
 		}
 		else if(t <= t3)
 		{
 			// v_ref = c_vmax - c_accel * (t-t2);
-			d_ref = D2 + sign * (c_vmax * (t-t2) - c_accel * (t-t2) * (t-t2) / 2);
+			d_ref = D2 + sign * (v_ref * (t-t2) - c_accel * (t-t2) * (t-t2) / 2);
 		}
 	}
 	
@@ -878,7 +892,7 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	current_status = STATUS_IDLE;
 }
 
-
+int pcnt = 0;
 /*
 	direction:
 		0 - pick smallest rotation
@@ -936,12 +950,28 @@ void move_to(long x, long y, char direction, int radius) {
 		}
 	}
 	
+	
+	long dt;
+	
+	int slowdown_phase = 0;
+	int maxspeed_phase = 0;
+
+	
+	float accel;
+	float alpha;
 	start_command();
+	long ls = sys_time;
+	int lt = sys_time;
 	while(1)
 	{
 		if(get_command() == ERROR) {
 			return;
 		}
+		
+		dt = sys_time - lt;
+		
+		accel = c_accel * dt;
+		alpha = c_alpha * dt;
 				
 		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
 		long orient = orientation;
@@ -963,60 +993,92 @@ void move_to(long x, long y, char direction, int radius) {
 		
 		// speed
 		if(ss != direction) {
+			start_packet('F');
+				put_byte(5);
+				put_word(pcnt++);
+			end_packet();
+
 			speed -= dval(ss, c_accel);
 			if(speed == 0.0f) {
-				speed += dval(direction, 0.1f);
+				speed += dval(direction, 0.01f);
 			}
 		} else {
 			t = abs_speed/c_accel * c_slowdown;
-			if(abs_speed*t > MILIMETER_TO_INC(dist)) {
+			if(slowdown_phase == 1 || abs_speed*t/2.0f > MILIMETER_TO_INC(dist)) {
+				slowdown_phase = 1;
 				// slow down
-				if(dist > 1.0f) {
-					speed = dval(ss, maxf(0.0f, abs_speed-c_accel ));
-				} else {
-					d_ref = L;
+				if(sys_time - ls > c_tmr) {
+					ls = sys_time;
+					start_packet('F');
+						put_byte(0);
+						put_word(pcnt++);
+					end_packet();
+				}
+				speed = dval(ss, maxf(0.0f, abs_speed-accel ));
+				if(speed == 0 || dist < 2.0f) {					
+					d_ref = D;
 					break;
 				}
 			} else if(abs_angle_diff < DEG_TO_INC_ANGLE(c_angle_speedup)) {
+				maxspeed_phase = 1;
 				// 0 -> vmax, 25 -> v
 				// vmax-v / 25 + v
-				float virt_max = ((v - c_vmax) * abs_angle_diff / DEG_TO_INC_ANGLE(c_angle_speedup)) + c_vmax;
+				float virt_max = c_vmax; //((v - c_vmax) * (float)abs_angle_diff / (float)DEG_TO_INC_ANGLE(c_angle_speedup)) + c_vmax;
+				if(sys_time - ls > c_tmr ) {
+					ls = sys_time;
+					start_packet('F');
+						put_byte(1);
+						put_word(pcnt++);
+						put_byte(speed);
+					end_packet();
+				}
 				if(abs_speed < virt_max) {
-					speed = dval(ss, minf(abs_speed+c_accel, virt_max));
+					speed = dval(ss, minf(abs_speed+accel, virt_max));
 				} else {
-					speed = dval(ss, maxf(abs_speed-c_accel, virt_max));
+					speed = dval(ss, maxf(abs_speed-accel, virt_max));
 				}
-			} else {				
+			} else {
+				if(sys_time - ls > c_tmr) {
+					ls = sys_time;
+					start_packet('F');
+						put_byte(2);
+						put_word(pcnt++);
+					end_packet();
+				}
 				if(abs_speed < v) {
-					speed = dval(ss, minf(abs_speed+c_accel, v));
+					speed = dval(ss, minf(abs_speed+accel, v));
 				} else if(abs_speed > v) {
-					speed = dval(ss, maxf(v, abs_speed-c_accel));
+					speed = dval(ss, maxf(v, abs_speed-accel));
 				}
+				
 			}
 		}
 		
 		// rotation
 		if((char)signl(angle_diff) != sr) {
-			rotation_speed -= dval(sr, c_alpha);
+			rotation_speed -= dval(sr, alpha);
 			if(rotation_speed == 0.0f) {
-				rotation_speed += dval(signl(angle_diff), 0.1f);
+				rotation_speed += dval(signl(angle_diff), 0.01f);
 			}
 		} else {
 			if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
 				t = abs_rotation_speed/c_alpha;
-				if(abs_rotation_speed*t > abs_angle_diff) {
-					rotation_speed = dval(sr, maxf( abs_rotation_speed - c_alpha, 0 ));
+				if(abs_rotation_speed*t/2.0f > abs_angle_diff) {
+					rotation_speed = dval(sr, maxf( abs_rotation_speed - alpha, 0 ));
 				} else {
-					rotation_speed = dval(sr, minf( abs_rotation_speed + c_alpha, w ));
-				}			
+					rotation_speed = dval(sr, minf( abs_rotation_speed + alpha, w ));
+				}
 			} else {
-				R = orientation;
+				R = orientation + rotation_speed * dt;
+				rotation_speed = 0;
 			}
 		}
 		
-		
-		D += speed;
-		R += rotation_speed;
+		dt = sys_time - lt;
+		lt = sys_time;
+
+		D += speed * dt;
+		R += rotation_speed * dt;
 		
 		d_ref = D;
 		t_ref = R;
@@ -1066,6 +1128,7 @@ void smooth_stop(void) {
 
 void set_rotation_speed(unsigned char max_speed, unsigned char max_accel) {
 	c_omega = VMAX * (unsigned char)max_speed / 256;
+	
 	if(c_omega < (VMAX * 161 / 256)) {
 		// in 500 ms speeds up to c_vmax
 		c_alpha = c_omega / (500 /*[ms]*/);

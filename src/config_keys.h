@@ -1,7 +1,7 @@
 // THIS FILE IS GENERATED WITH PYTHON SCRIPT "config_keys_gen.py" and must only be included within "config.h"
 #ifdef CONFIG_H
 
-#define CONFIG_MAX_BYTES 7
+#define CONFIG_MAX_BYTES 8
 #define CONFIG_MAX_INTS 7
 #define CONFIG_MAX_FLOATS 13
 
@@ -14,28 +14,29 @@ enum ConfEnum {
 	CONF_DEBUG = 4,
 	CONF_STATUS_CHANGE_REPORT = 5,
 	CONF_KEEP_COUNT = 6,
+	CONF_TMR = 7,
 
-	CONF_STUCK_DISTANCE_JUMP = 7,
-	CONF_STUCK_ROTATION_JUMP = 8,
-	CONF_STUCK_DISTANCE_MAX_FAIL_COUNT = 9,
-	CONF_STUCK_ROTATION_MAX_FAIL_COUNT = 10,
-	CONF_MOTOR_SPEED_LIMIT = 11,
-	CONF_MOTOR_RATE_OF_CHANGE = 12,
-	CONF_SEND_STATUS_INTERVAL = 13,
+	CONF_STUCK_DISTANCE_JUMP = 8,
+	CONF_STUCK_ROTATION_JUMP = 9,
+	CONF_STUCK_DISTANCE_MAX_FAIL_COUNT = 10,
+	CONF_STUCK_ROTATION_MAX_FAIL_COUNT = 11,
+	CONF_MOTOR_SPEED_LIMIT = 12,
+	CONF_MOTOR_RATE_OF_CHANGE = 13,
+	CONF_SEND_STATUS_INTERVAL = 14,
 
-	CONF_WHEEL_DISTANCE = 14,
-	CONF_WHEEL_R1 = 15,
-	CONF_WHEEL_R2 = 16,
-	CONF_PID_D_P = 17,
-	CONF_PID_D_D = 18,
-	CONF_PID_R_P = 19,
-	CONF_PID_R_D = 20,
-	CONF_VMAX = 21,
-	CONF_OMEGA = 22,
-	CONF_ACCEL = 23,
-	CONF_ALPHA = 24,
-	CONF_SLOWDOWN = 25,
-	CONF_ANGLE_SPEEDUP = 26,
+	CONF_WHEEL_DISTANCE = 15,
+	CONF_WHEEL_R1 = 16,
+	CONF_WHEEL_R2 = 17,
+	CONF_PID_D_P = 18,
+	CONF_PID_D_D = 19,
+	CONF_PID_R_P = 20,
+	CONF_PID_R_D = 21,
+	CONF_VMAX = 22,
+	CONF_OMEGA = 23,
+	CONF_ACCEL = 24,
+	CONF_ALPHA = 25,
+	CONF_SLOWDOWN = 26,
+	CONF_ANGLE_SPEEDUP = 27,
 };
 
 
@@ -46,6 +47,7 @@ enum ConfEnum {
 #define c_debug config_bytes[CONF_DEBUG-CONFIG_BYTE_OFFSET]
 #define c_status_change_report config_bytes[CONF_STATUS_CHANGE_REPORT-CONFIG_BYTE_OFFSET]
 #define c_keep_count config_bytes[CONF_KEEP_COUNT-CONFIG_BYTE_OFFSET]
+#define c_tmr config_bytes[CONF_TMR-CONFIG_BYTE_OFFSET]
 
 #define c_stuck_distance_jump config_ints[CONF_STUCK_DISTANCE_JUMP-CONFIG_INT_OFFSET]
 #define c_stuck_rotation_jump config_ints[CONF_STUCK_ROTATION_JUMP-CONFIG_INT_OFFSET]
@@ -82,6 +84,7 @@ static inline void config_load_defaults(void) {
 	config_set_b(CONF_DEBUG, 0);
 	config_set_b(CONF_STATUS_CHANGE_REPORT, 1);
 	config_set_b(CONF_KEEP_COUNT, 100);
+	config_set_b(CONF_TMR, 20);
 	config_set_i(CONF_STUCK_DISTANCE_JUMP, 400);
 	config_set_i(CONF_STUCK_ROTATION_JUMP, 180);
 	config_set_i(CONF_STUCK_DISTANCE_MAX_FAIL_COUNT, 200);
@@ -89,7 +92,7 @@ static inline void config_load_defaults(void) {
 	config_set_i(CONF_MOTOR_SPEED_LIMIT, 3200);
 	config_set_i(CONF_MOTOR_RATE_OF_CHANGE, 3200);
 	config_set_i(CONF_SEND_STATUS_INTERVAL, 0);
-	config_set_f(CONF_WHEEL_DISTANCE, 330.7f);
+	config_set_f(CONF_WHEEL_DISTANCE, 329.56f);
 	config_set_f(CONF_WHEEL_R1, 92.52f);
 	config_set_f(CONF_WHEEL_R2, 92.55f);
 	config_set_f(CONF_PID_D_P, 5.5f);

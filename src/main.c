@@ -48,7 +48,7 @@ void port_init(void)
 	LATBbits.LATB14 = 0;
 	LATBbits.LATB15 = 0;
 }
-
+void wait_for_regulator();
 int main(void)
 {
 	int tmpX, tmpY, tmp, tmpO;

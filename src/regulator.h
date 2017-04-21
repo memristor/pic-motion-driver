@@ -110,5 +110,6 @@ void force_status(enum State);
 
 void smooth_stop(void);
 void calculate_K();
+
 #endif	/* REGULACIJA_H */
 

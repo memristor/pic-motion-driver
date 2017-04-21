@@ -291,10 +291,10 @@ enum PacketStatus {
 
 static volatile Packet* tx_pkt_sending = 0;
 
-static int8_t tx_pkt_stack_num = -1;
+static volatile int tx_pkt_stack_num = -1;
 static Packet* tx_pkt_stack[NUM_TX_PACKETS];
 static Packet tx_pkt[NUM_TX_PACKETS];
-static Packet* tx_writing_pkt = 0;
+static volatile Packet* tx_writing_pkt = 0;
 static volatile uint8_t tx_num_free_packets = NUM_TX_PACKETS;
 
 static void* pkt_queue_data[NUM_TX_PACKETS];
@@ -348,7 +348,7 @@ void start_packet(uint8_t type) {
 			}
 		}
 		
-		tx_pkt_stack[tx_pkt_stack_num] = tx_writing_pkt;
+		tx_pkt_stack[tx_pkt_stack_num] = (Packet*)tx_writing_pkt;
 		if(tx_writing_pkt == 0) return;
 		
 		tx_writing_pkt->status = writing_packet;
@@ -393,7 +393,11 @@ void end_packet(void) {
 			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
 			tx_writing_pkt->status = sending;
 		} else {
-			queue_push(&pkt_queue, tx_writing_pkt);
+			if(queue_full(&pkt_queue)) {
+				tx_writing_pkt->status = free_to_use;
+			} else {
+				queue_push(&pkt_queue, (Packet*)tx_writing_pkt);
+			}
 		}
 	}
 	

@@ -1,7 +1,7 @@
 #!/bin/env python3
 
 keys_float = {
-	'wheel_distance': 330.7,
+	'wheel_distance': 329.56,
 	'wheel_R1': 92.52,
 	'wheel_R2': 92.55,
 	
@@ -41,6 +41,7 @@ keys_byte = {
 	'debug': 0,
 	'status_change_report': 1,
 	'keep_count': 100,
+	'tmr': 20
 }
 
 commands = {
