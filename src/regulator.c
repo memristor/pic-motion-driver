@@ -744,6 +744,7 @@ char turn(int angle)
 	t3 = t2 + T3;
 
 	current_status = STATUS_ROTATING;
+	send_status_and_position();
 	while(t < t3) {
 		if(t != sys_time) // every 1ms
 		{
@@ -905,6 +906,7 @@ void move_to(long x, long y, char direction, int radius) {
 	
 	long long int Xdlong, Ydlong;
 	
+	radius = absl(radius);
 	float dist = get_distance_to(x,y);
 	
 	float v_div_w = (float)MILIMETER_TO_INC( minf(dist, radius)/2.0f ) / (float)RAD_TO_INC_ANGLE(1);
@@ -950,8 +952,8 @@ void move_to(long x, long y, char direction, int radius) {
 		}
 	}
 	
-	
-	long dt;
+	sys_time = 0;
+	unsigned long dt;
 	
 	int slowdown_phase = 0;
 	int maxspeed_phase = 0;
@@ -1038,6 +1040,7 @@ void move_to(long x, long y, char direction, int radius) {
 					speed = dval(ss, maxf(abs_speed-accel, virt_max));
 				}
 			} else {
+				
 				if(sys_time - ls > c_tmr) {
 					ls = sys_time;
 					start_packet('F');
@@ -1045,6 +1048,7 @@ void move_to(long x, long y, char direction, int radius) {
 						put_word(pcnt++);
 					end_packet();
 				}
+				
 				if(abs_speed < v) {
 					speed = dval(ss, minf(abs_speed+accel, v));
 				} else if(abs_speed > v) {
