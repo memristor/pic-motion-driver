@@ -225,6 +225,17 @@ int main(void)
 			case CMD_RESET_DRIVER:
 				reset_driver();
 				break;
+			
+			case CMD_UNSTUCK:
+				reset_stuck();
+				break;
+				
+			case CMD_MOTOR: {
+				tmpX = get_word();
+				tmpY = get_word();
+				motor_const(tmpX, tmpY);
+				break;
+			}
 
 			default:
 				force_status(STATUS_ERROR);

@@ -69,9 +69,8 @@ int left_motor_pwm = 0;
 int right_motor_pwm = 0;
 
 void motor_left_set_power(int power) {
-	// power = clip(-c_motor_speed_limit, c_motor_speed_limit, power);
-	
-	// power = clip(left_motor_pwm-c_motor_rate_of_change, left_motor_pwm+c_motor_rate_of_change, power);
+	power = clip(-c_motor_speed_limit, c_motor_speed_limit, power);
+	power = clip(left_motor_pwm-c_motor_rate_of_change, left_motor_pwm+c_motor_rate_of_change, power);
 	
 	left_motor_pwm = power;
 	
@@ -89,9 +88,8 @@ void motor_left_set_power(int power) {
 }
 
 void motor_right_set_power(int power) {
-	// power = clip(-c_motor_speed_limit, c_motor_speed_limit, power);
-	
-	// power = clip(right_motor_pwm-c_motor_rate_of_change, right_motor_pwm+c_motor_rate_of_change, power);
+	power = clip(-c_motor_speed_limit, c_motor_speed_limit, power);
+	power = clip(right_motor_pwm-c_motor_rate_of_change, right_motor_pwm+c_motor_rate_of_change, power);
 
 	right_motor_pwm = power;
 	
@@ -111,6 +109,8 @@ void motor_right_set_power(int power) {
 
 void motor_turn_off(void)
 {
+	left_motor_pwm = 0;
+	right_motor_pwm = 0;
 	/* clear the Interrupt enables */
 	IEC3bits.PWM1IE = 0;
 	IEC3bits.FLTA1IE = 0;

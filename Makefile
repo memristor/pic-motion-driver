@@ -32,6 +32,9 @@ config:
 
 js:
 	python3 config_keys_gen.py js > config_const.js
+	
+py:
+	python3 config_keys_gen.py py > const.py
 
 clean:
 	rm -f src/*.o

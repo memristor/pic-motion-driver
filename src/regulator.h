@@ -97,6 +97,7 @@ char turn(int angle);
 void arc(long Xc, long Yc, int Fi, char direction_angle, char direction);
 void move_to(long x, long y, char direction, int radius);
 void stop(void);
+void motor_const(int a, int b);
 
 void set_speed_accel(float v);
 void set_speed(unsigned char tmp);

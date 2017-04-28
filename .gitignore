@@ -1,3 +1,5 @@
 *.o
 *.elf
 *.hex
+const.py
+config_const.js

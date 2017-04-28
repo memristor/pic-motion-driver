@@ -1,9 +1,13 @@
 #!/bin/env python3
 
+
 keys_float = {
-	'wheel_distance': 329.56,
-	'wheel_R1': 92.52,
-	'wheel_R2': 92.55,
+	# 'wheel_distance': 329.56,
+	# 'wheel_R1': 92.52,
+	# 'wheel_R2': 92.55,
+	'wheel_distance': 207.0,
+	'wheel_R1': 69.0,
+	'wheel_R2': 69.0,
 	
 	'PID_d_p': 5.5,
 	'PID_d_d': 200,
@@ -30,6 +34,7 @@ keys_int = {
 	'motor_speed_limit': 3200,
 	'motor_rate_of_change': 3200,
 	'send_status_interval': 0,
+	'motor_const_roc': 100
 }
 
 
@@ -41,7 +46,8 @@ keys_byte = {
 	'debug': 0,
 	'status_change_report': 1,
 	'keep_count': 100,
-	'tmr': 20
+	'tmr': 20,
+	'motor_connected': 1
 }
 
 commands = {
@@ -64,6 +70,8 @@ commands = {
 	'forward': 'D',
 	'set_position_and_orientation': 'I',
 	'break': 'i',
+	'unstuck': 'u',
+	'motor': 'm'
 }
 
 # -------------------------------------
@@ -172,8 +180,38 @@ def gen_js_code():
 	
 	print(s)
 
+
+def gen_py_code():
+	cnt = 0
+	s = 'config_bytes = [\n'
+	for i in keys_byte:
+		s += '\t\'' + i.lower() + '\',\n'
+		cnt += 1
+	s += '\n'
+	s += ']\n'
+	s += 'config_ints = [\n'
+	for i in keys_int:
+		s += '\t\'' + i.lower() + '\',\n'
+		cnt += 1
+	s += '\n'
+	s += ']\n'
+	
+	s += 'config_floats = [\n'
+	for i in keys_float:
+		s += '\t\'' + i.lower() + '\',\n'
+		cnt += 1
+	s += ']\n'
+	
+	s += 'commands = {\n'
+	for i in commands:
+		s += '\t\'' + i + '\': \'' + commands[i] + '\',\n'
+	s += '}\n'
+	print(s)
+	
 import sys
 if sys.argv[-1] == 'mcu':
 	gen_mcu_code()
 elif sys.argv[-1] == 'js':
 	gen_js_code()
+elif sys.argv[-1] == 'py':
+	gen_py_code()

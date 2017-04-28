@@ -274,8 +274,11 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 			put_word(check);
 		end_packet();
 	}
-	motor_left_set_power(regulator_distance - regulator_rotation);
-	motor_right_set_power(regulator_distance + regulator_rotation);
+	
+	if(c_motor_connected == 1) {
+		motor_left_set_power(regulator_distance - regulator_rotation);
+		motor_right_set_power(regulator_distance + regulator_rotation);
+	}
 	
 	// send status periodically if requested
 	if(c_send_status_interval > 0 && ++send_status_counter > c_send_status_interval) {
@@ -365,15 +368,6 @@ void set_speed_accel(float v)
 	c_vmax = v;
 	c_omega = 2 * c_vmax;
 	c_accel = c_vmax / ((350-500) * (v / VMAX) + 500);
-	
-	/*
-	if(c_vmax < (VMAX * 161 / 256))
-		// in 500 ms speeds up to c_vmax
-		c_accel = c_vmax / (500 );
-	else
-		// in 375 ms speeds up to c_vmax
-		c_accel = c_vmax / (375);
-	*/
 	c_alpha = 2 * c_accel;
 }
 
@@ -497,7 +491,7 @@ static char get_command(void)
 				keep_speed = current_speed;
 				keep_rotation = angular_speed;
 				return BREAK;
-
+			
 			default:
 				// received unknown packet, ignore
 				return OK;
@@ -506,6 +500,31 @@ static char get_command(void)
 	}
 
 	return OK;
+}
+
+void motor_const(int a, int b) {
+	char old_val = c_motor_connected;
+	char old_stuck = c_enable_stuck;
+	int old_rate_of_change = c_motor_rate_of_change;
+	c_motor_connected = 0;
+	c_motor_rate_of_change = c_motor_const_roc;
+	c_enable_stuck = 0;
+	start_command();
+	current_status = STATUS_MOVING;
+	motor_init();
+	while(1) {
+		if(get_command() == ERROR) {
+			motor_turn_off();
+			c_motor_connected = old_val;
+			c_motor_rate_of_change = old_rate_of_change;
+			c_enable_stuck = old_stuck;
+			current_status = STATUS_IDLE;
+			return;
+		}
+		motor_left_set_power(a);
+		motor_right_set_power(b);
+		wait_for_regulator();
+	}
 }
 
 // turn to point and move to it (Xd, Yd)
