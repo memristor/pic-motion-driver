@@ -1084,8 +1084,8 @@ void move_to(long x, long y, char direction, int radius) {
 				rotation_speed += dval(signl(angle_diff), 0.01f);
 			}
 		} else {
-			if(abs_angle_diff > DEG_TO_INC_ANGLE(1)) {
-				t = abs_rotation_speed/c_alpha;
+			if(abs_angle_diff > DEG_TO_INC_ANGLE(2)) {
+				t = abs_rotation_speed/c_alpha * c_slowdown_angle;
 				if(abs_rotation_speed*t/2.0f > abs_angle_diff) {
 					rotation_speed = dval(sr, maxf( abs_rotation_speed - alpha, 0 ));
 				} else {
