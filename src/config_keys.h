@@ -100,9 +100,9 @@ static inline void config_load_defaults(void) {
 	config_set_i(CONF_MOTOR_RATE_OF_CHANGE, 3200);
 	config_set_i(CONF_SEND_STATUS_INTERVAL, 0);
 	config_set_i(CONF_MOTOR_CONST_ROC, 100);
-	config_set_f(CONF_WHEEL_DISTANCE, 207.0f);
-	config_set_f(CONF_WHEEL_R1, 69.0f);
-	config_set_f(CONF_WHEEL_R2, 69.0f);
+	config_set_f(CONF_WHEEL_DISTANCE, 329.56f);
+	config_set_f(CONF_WHEEL_R1, 92.52f);
+	config_set_f(CONF_WHEEL_R2, 92.55f);
 	config_set_f(CONF_PID_D_P, 5.5f);
 	config_set_f(CONF_PID_D_D, 200.0f);
 	config_set_f(CONF_PID_R_P, 3.0f);

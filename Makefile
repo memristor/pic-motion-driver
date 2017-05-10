@@ -15,6 +15,8 @@ src := \
 
 obj := $(patsubst %.c,%.o,$(src))
 
+robot := big
+
 test.hex: test.elf
 	$(TOOLCHAIN)bin2hex test.elf
 
@@ -28,13 +30,13 @@ test.elf: $(obj)
 	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
 
 config:
-	python3 config_keys_gen.py mcu > src/config_keys.h
+	python3 config_keys_gen.py mcu $(robot) > src/config_keys.h
 
 js:
-	python3 config_keys_gen.py js > config_const.js
+	python3 config_keys_gen.py js $(robot) > config_const.js
 	
 py:
-	python3 config_keys_gen.py py > const.py
+	python3 config_keys_gen.py py $(robot) > const.py
 
 clean:
 	rm -f src/*.o

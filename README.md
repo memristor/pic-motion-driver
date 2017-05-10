@@ -17,3 +17,11 @@ Use `mplab_ipe` located by default at: `/opt/microchip/mplabx/v3.50/mplab_ipe/mp
 - Install required tools `sudo yaourt -S microchip-mplabx-bin microchip-mplabxc16-bin`
 - Compile `make`
 - Run `mplab_ipe` to upload .hex
+
+
+## generating config
+make config [robot=big/small]
+make config robot=big
+make config robot=small
+make py robot=big(small)
+make js robot=big(small)
