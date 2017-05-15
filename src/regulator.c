@@ -352,7 +352,7 @@ void set_position(int X, int Y, int orientation)
 
 void send_status_and_position(void)
 {
-	if(!can_send_packet()) return;
+	// if(!can_send_packet()) return;
 	
 	start_packet(CMD_SEND_STATUS);
 		put_byte(current_status);

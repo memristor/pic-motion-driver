@@ -11,6 +11,8 @@ src := \
 	src/regulator.c \
 	src/config.c \
 	src/queue.c \
+	src/can.c \
+	src/packet.c \
 
 
 obj := $(patsubst %.c,%.o,$(src))

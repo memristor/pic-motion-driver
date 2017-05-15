@@ -20,6 +20,14 @@ void encoder_init(void)
 	POS2CNT=0;
 }
 
+void encoder_init_pins(void) {
+	RPINR14bits.QEA1R = 2;		//QEI1A -> RP2
+	RPINR14bits.QEB1R = 3;		//QEI1B -> RP3
+
+	RPINR16bits.QEA2R = 4;		//QEI2A -> RP4
+	RPINR16bits.QEB2R = 7;		//QEI2B -> RP7
+}
+
 
 int encoder_left_get_count(void) {
 	int r = -(int)POS1CNT;

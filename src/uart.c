@@ -1,15 +1,14 @@
-#include "queue.h"
 #include "uart.h"
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
+
+// #define DISI(n) do { asm volatile ("disi #%0" : : "i"(n)); } while (0)
 
 static volatile uint8_t rx_buf[RX_BUF_LEN];
 static volatile uint8_t rx_index1 = 0; // new data is put at this offset
 static volatile uint8_t rx_index2 = 0; // data is read from this offset
 static volatile uint8_t rxData;
 static volatile uint8_t rxCounter = 0;
-
-static void init_tx_packets(void);
 
 void uart_init(long baud)
 {
@@ -22,23 +21,17 @@ void uart_init(long baud)
 	IFS0bits.U1RXIF = 0;
 	IFS0bits.U1TXIF = 0;
 
-	// _U1RXIE = 1;    		// Enable UART1 Rx interrupt
-	
 	IEC0bits.U1RXIE = 1;
 	IEC0bits.U1TXIE = 1;
 	
 	IPC2bits.U1RXIP = 6;	// Priority must be less than 7, otherwise it can't be temporarily disabled
 	IPC3bits.U1TXIP = 6;	// Priority must be less than 7, otherwise it can't be temporarily disabled
-	
-	IPC0bits.T1IP = 1; 		// T1 interrupt priority set to minimum
 
 	rx_index1 = rx_index2 = rxCounter = 0;
 
 	U1MODEbits.UARTEN = 1;  // Enable UART
 	U1STAbits.UTXEN = 1;
 	
-	init_tx_packets();
-
 	__delay_ms(100);
 }
 
@@ -60,13 +53,13 @@ void uart_close(void)
 
 // ------------[ UART synchronous write ]---------------
 
-void putch(unsigned char c)
+void uart_putch(unsigned char c)
 {
 	while(U1STAbits.UTXBF);
 	U1TXREG = c;
 }
 
-void putint16(unsigned int s) {
+void uart_putint16(unsigned int s) {
 	while(U1STAbits.UTXBF);
 	
 	U1TXREG = s >> 8;
@@ -76,16 +69,23 @@ void putint16(unsigned int s) {
 	U1TXREG = s;
 }
 
-void putstr(const char* s) {
+void uart_init_pins(void) {
+	RPINR18bits.U1RXR = 0;		//UART1 RX -> RP0- pin 4
+	RPOR0bits.RP1R = 3;			//UART1 TX -> RP1- pin 5
+}
+
+void uart_putstr(const char* s) {
 	while(*s) {
-		putch(*s);
+		uart_putch(*s);
 		s++;
 	}
 }
 
 // ------------[ UART synchronous read ]--------------
-
-unsigned char getch(void)
+/*
+ * Don't use from interrupt
+ */
+unsigned char uart_getch(void)
 {
 	while(rxCounter == 0);
 	SRbits.IPL = 7;
@@ -96,7 +96,10 @@ unsigned char getch(void)
 	return rx_buf[rx_index2];
 }
 
-unsigned int getint16(void) {
+/*
+ * Don't use from interrupt
+ */
+unsigned int uart_getint16(void) {
 	unsigned int ret;
 	
 	while(rxCounter < 2);
@@ -129,15 +132,15 @@ unsigned char uart_check_rx(void)
 	return rxCounter;
 }
 
-
-void flush(void) {
+/*
+ * Don't use from interrupt
+ */
+void uart_flush(void) {
 	SRbits.IPL = 7;
 	rxCounter = 0;
 	rx_index2 = rx_index1;
 	SRbits.IPL = 0;
 }
-
-
 
 void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
 {
@@ -159,27 +162,6 @@ void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
 	IFS0bits.U1RXIF = 0;
 }
 
-
-
-// end
-
-// ------------- UART packet protocol ------------
-
-/*
-	SCTLxxxxxxxx
-
-	S - 1 Byte sync (0x3c)
-	C - 1 Byte checksum ( upper nibble - header checksum, lower nibble payload checksum )
-	T - 1 Byte type
-	L - 1 Byte payload length
-	x - L Bytes data
-*/
-
-
-#define PACKET_SYNC 0x3c
-
-
-
 // ------------[ RX PACKET ]--------------
 
 /*
@@ -197,15 +179,19 @@ static uint8_t rx_get(void) {
 	return rx_buf[rx_index2];
 }
 
+#define PACKET_SYNC 0x3c
 static Packet rx_pkt;
 static uint8_t rx_pkt_wait_for_data = 0;
 
-Packet* try_read_packet(void) {
+
+/*
+ * Don't use from interrupt
+ */
+Packet* uart_try_read_packet(void) {
 	uint8_t read = 0;
 	uint8_t pass = 0;
 	if(rx_pkt_wait_for_data == 0) {
 		while(rxCounter - read >= PACKET_HEADER) {
-			
 			read++;
 			
 			// if found packet_sync
@@ -245,171 +231,59 @@ Packet* try_read_packet(void) {
 	}
 	
 	SRbits.IPL = 7;
-	if(rxCounter >= read)
+	if(rxCounter >= read) {
 		rxCounter -= read;
-	else
+	} else {
 		rxCounter = 0;
+	}
 	SRbits.IPL = 0;
 	
 	
 	if(pass) {
 		rx_pkt.cursor = 0;
+		
+		int can = packet_can_enabled();
+		if(can == 1) packet_enable_can(0);
 		start_packet('A');
 			put_byte(rx_pkt.type);
 		end_packet();
+		if(can == 1) packet_enable_can(1);
+		
+			
 		return &rx_pkt;
 	}
 	return 0;
 }
 
-uint8_t get_byte(void) {
-	if(rx_pkt.cursor < rx_pkt.size)
-		return rx_pkt.data[rx_pkt.cursor++];
-	else
-		return 0;
-}
 
-uint16_t get_word(void) {
-	if(rx_pkt.cursor+1 < rx_pkt.size) {
-		uint16_t r = ((uint16_t)rx_pkt.data[rx_pkt.cursor] << 8) | rx_pkt.data[rx_pkt.cursor+1];
-		rx_pkt.cursor += 2;
-		return r;
-	} else {
-		return 0;
-	}
-}
 
 // --------------[ TX packet ]----------------- 
-#define NUM_TX_PACKETS 10
 
-enum PacketStatus {
-	free_to_use,
-	writing_packet,
-	ready_to_send,
-	sending
-};
 
-static volatile Packet* tx_pkt_sending = 0;
 
-static volatile int tx_pkt_stack_num = -1;
-static Packet* tx_pkt_stack[NUM_TX_PACKETS];
-static Packet tx_pkt[NUM_TX_PACKETS];
-static volatile Packet* tx_writing_pkt = 0;
-static volatile uint8_t tx_num_free_packets = NUM_TX_PACKETS;
+static Packet* volatile tx_pkt_sending = 0;
 
-static void* pkt_queue_data[NUM_TX_PACKETS];
-Queue pkt_queue;
-
-static void init_tx_packets(void) {
-	int i;
-	for(i=0; i < NUM_TX_PACKETS; i++) {
-		tx_pkt[i].status = free_to_use;
-	}
-	queue_init(&pkt_queue, pkt_queue_data, NUM_TX_PACKETS);
+void uart_start_sending_packet(Packet* p) {
+	if(!p || tx_pkt_sending != 0) return;
+	tx_pkt_sending = p;
+	tx_pkt_sending->status = sending;
+	U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
 }
 
-void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
+void __attribute__((__interrupt__,no_auto_psv)) _U1TXInterrupt(void)
 {
-	if(tx_pkt_sending) {
+	if(tx_pkt_sending != 0) {
 		U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
 		if(tx_pkt_sending->cursor >= tx_pkt_sending->size + PACKET_HEADER) {
-			tx_pkt_sending->status = free_to_use;
-			tx_num_free_packets++;
+			packet_free_packet(tx_pkt_sending);
 			tx_pkt_sending = 0;
+			uart_start_sending_packet(packet_sending_queue_pop());
 		}
 	}
-	
-	if(!tx_pkt_sending) {
-		if(!queue_empty(&pkt_queue)) {
-			tx_pkt_sending = queue_pop(&pkt_queue);
-			tx_pkt_sending->status = sending;
-			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
-		}
-	}
-	
+
 	IFS0bits.U1TXIF = 0;
 }
 
-inline char can_send_packet(void) {
-	return tx_num_free_packets > 1; // 1 packet is reserved for ACK message
-}
 
-
-
-void start_packet(uint8_t type) {
-	tx_pkt_stack_num++;
-	if(tx_pkt_stack_num < NUM_TX_PACKETS && tx_num_free_packets > 0) {
-		tx_writing_pkt = 0;
-		int i;
-		for(i=0; i < NUM_TX_PACKETS; i++) {
-			if(tx_pkt[i].status == free_to_use) {
-				tx_writing_pkt = &tx_pkt[i];
-				break;
-			}
-		}
-		
-		tx_pkt_stack[tx_pkt_stack_num] = (Packet*)tx_writing_pkt;
-		if(tx_writing_pkt == 0) return;
-		
-		tx_writing_pkt->status = writing_packet;
-		tx_writing_pkt->type = type;
-		tx_writing_pkt->size = 0;
-		
-		SRbits.IPL = 7;
-		tx_num_free_packets--;
-		SRbits.IPL = 0;
-	}
-}
-
-void put_byte(int8_t b) {
-	if(!tx_writing_pkt) return;
-	tx_writing_pkt->data[tx_writing_pkt->size++] = b;
-}
-
-void put_word(int16_t w) {
-	if(!tx_writing_pkt) return;
-	
-	tx_writing_pkt->data[tx_writing_pkt->size] = w >> 8;
-	tx_writing_pkt->data[tx_writing_pkt->size+1] = w;
-	tx_writing_pkt->size += 2;
-}
-
-void end_packet(void) {
-	
-	if(tx_writing_pkt) {
-		tx_writing_pkt->sync = PACKET_SYNC;
-		int crc = 0;
-		int i;
-		for(i=0; i < tx_writing_pkt->size; i++) {
-			crc += tx_writing_pkt->data[i];
-		}
-		
-		tx_writing_pkt->crc = ((tx_writing_pkt->size + tx_writing_pkt->type) << 4) | (crc & 0xf);
-		
-		tx_writing_pkt->cursor = 0;
-		tx_writing_pkt->status = ready_to_send;
-		if(!tx_pkt_sending) {
-			tx_pkt_sending = tx_writing_pkt;
-			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
-			tx_writing_pkt->status = sending;
-		} else {
-			if(queue_full(&pkt_queue)) {
-				tx_writing_pkt->status = free_to_use;
-			} else {
-				queue_push(&pkt_queue, (Packet*)tx_writing_pkt);
-			}
-		}
-	}
-	
-	if(tx_pkt_stack_num >= 0)
-		tx_pkt_stack_num--;
-		
-	if(tx_pkt_stack_num >= 0 && tx_pkt_stack_num < NUM_TX_PACKETS) {
-		tx_writing_pkt = tx_pkt_stack[tx_pkt_stack_num];
-	} else {
-		tx_writing_pkt = 0;
-	}
-	
-}
 
 

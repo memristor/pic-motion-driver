@@ -14,14 +14,11 @@
 #include <libpic30.h>
 #include <stdint.h>
 #include <p33FJ128MC802.h>
+#include "can.h"
+#include "packet.h"
 
 #pragma config FWDTEN = OFF, \
 			   FNOSC = FRCPLL
-
-// static uint32_t load_uint32_bigendian(uint8_t* s) {
-	// return (((uint32_t)s[0]) << 24) | (((uint32_t)s[1]) << 16) | (((uint32_t)s[2]) << 8) | ((uint32_t)s[3]);
-// }
-
 
 void port_init(void)
 {
@@ -72,20 +69,25 @@ int main(void)
 	
 	__builtin_write_OSCCONL(OSCCON & 0xDF);
 	
-	RPINR18bits.U1RXR = 0;		//UART1 RX -> RP0- pin 4
-	RPOR0bits.RP1R = 3;			//UART1 TX -> RP1- pin 5
-	RPINR14bits.QEA1R = 2;		//QEI1A -> RP2
-	RPINR14bits.QEB1R = 3;		//QEI1B -> RP3
-
-	RPINR16bits.QEA2R = 4;		//QEI2A -> RP4
-	RPINR16bits.QEB2R = 7;		//QEI2B -> RP7
+	can_init_pins();
+	uart_init_pins();
+	encoder_init_pins();
 
 	__builtin_write_OSCCONL(OSCCON | (1<<6));
 
 	//INTCON1bits.NSTDIS = 1; // disable recursive interrupts?
-
-	config_init();
 	port_init();
+	
+	can_init();
+	can_set_default_id(600, 1, 0);
+	can_set_rx_id(600);
+	
+	packet_init();
+	packet_enable_can(1);
+	packet_enable_uart(1);
+	
+	config_init();
+	
 	uart_init(57600);
 	timer_init();
 	encoder_init();
