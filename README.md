@@ -20,7 +20,7 @@ Use `mplab_ipe` located by default at: `/opt/microchip/mplabx/v3.50/mplab_ipe/mp
 
 
 ## generating config
-make config [robot=big/small]
+make config robot=big/small
 make config robot=big
 make config robot=small
 make py robot=big(small)

@@ -131,7 +131,7 @@ int main(void)
 				break;
 			}
 				// read status and position
-			case CMD_SEND_STATUS:
+			case CMD_SEND_STATUS_AND_POSITION:
 				send_status_and_position();
 				break;
 

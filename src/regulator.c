@@ -354,7 +354,7 @@ void send_status_and_position(void)
 {
 	// if(!can_send_packet()) return;
 	
-	start_packet(CMD_SEND_STATUS);
+	start_packet(CMD_SEND_STATUS_AND_POSITION);
 		put_byte(current_status);
 		put_word(X);
 		put_word(Y);
@@ -419,7 +419,7 @@ static char get_command(void)
 	{
 		switch(pkt->type)
 		{           
-			case CMD_SEND_STATUS:
+			case CMD_SEND_STATUS_AND_POSITION:
 				send_status_and_position();
 				break;
 

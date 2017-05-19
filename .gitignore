@@ -3,3 +3,4 @@
 *.hex
 const.py
 config_const.js
+src/config_keys.h
