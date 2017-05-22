@@ -21,7 +21,8 @@ conf = {
 					'alpha': 0x32,
 					'slowdown': 1.0,
 					'slowdown_angle': 1.1,
-					'angle_speedup': 20
+					'angle_speedup': 20,
+					'speed_drop': 0.1
 				},
 				
 			'int':
@@ -73,7 +74,8 @@ conf = {
 					'alpha': 0x32,
 					'slowdown': 1.0,
 					'slowdown_angle': 1.1,
-					'angle_speedup': 20
+					'angle_speedup': 20,
+					'speed_drop': 0.1
 				},
 				
 			'int':

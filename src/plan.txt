@@ -23,7 +23,8 @@ move_to command (N)
 			- max rotation acceleration/deceleration speed
 			- max rotation speed (limited due to inertia)
 
-	- small distances smooth
-	- CAN support
+	+ small distances smooth
+	+ CAN support
 	+ smooth stop
-	- config
+	+ config
+	- additional N (for entries)

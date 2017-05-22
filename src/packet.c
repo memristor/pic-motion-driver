@@ -161,7 +161,8 @@ void end_packet(void) {
 				else if(len > 8) len = 8;
 				buf[2] = (buf[2] & 0xfff0) | (len & 0xf);
 				*d++ = tx_writing_pkt->type;
-				for(i=0; i < tx_writing_pkt->size; i++) {
+				len = len-1;
+				for(i=0; i < len; i++) {
 					d[i] = tx_writing_pkt->data[i];
 				}
 				can_send_tx_buffer(buf);
