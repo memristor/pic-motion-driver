@@ -62,10 +62,10 @@ conf = {
 					'wheel_R1': 69.0,
 					'wheel_R2': 69.0,
 					
-					'PID_d_p': 5.5,
-					'PID_d_d': 200,
-					'PID_r_p': 3,
-					'PID_r_d': 90,
+					'PID_d_p': 1.5,
+					'PID_d_d': 100,
+					'PID_r_p': 2.5,
+					'PID_r_d': 70,
 					
 					'vmax': 0x32,
 					'omega': 0x32,

@@ -230,13 +230,25 @@ void __attribute__((interrupt(auto_psv))) _T1Interrupt(void)
 	
 	// ------------[ Rotation Stuck Detect ]---------------
 	
+	/*
+	start_packet('D');
+		put_byte(d_ref_fail_count);
+		put_byte(t_ref_fail_count);
+		put_word(angular_speed);
+		put_word(error);
+	end_packet();
+	*/
+		
 	if( c_enable_stuck == 1 ) {
 		
 		if(absl(error-prev_rotation_error) > DEG_TO_INC_ANGLE(c_stuck_rotation_jump)) {
 			current_status = STATUS_STUCK;
 		}
 		
-		if(absl(error) > DEG_TO_INC_ANGLE(10) && signl(error) != signl(angular_speed) && absl(angular_speed) < DEG_TO_INC_ANGLE(1)) {
+		
+		uint16_t abs_err = absl(error);
+		uint16_t abs_ang = absl(angular_speed);
+		if(absl(error) > DEG_TO_INC_ANGLE(1) && (signl(error) != signl(-angular_speed) || absl(angular_speed) < DEG_TO_INC_ANGLE(0.1))) {
 			if(++t_ref_fail_count > c_stuck_rotation_max_fail_count) {
 				current_status = STATUS_STUCK;
 				t_ref_fail_count = 0;
@@ -920,6 +932,7 @@ int pcnt = 0;
 	   -1 - backward
 */
 void move_to(long x, long y, char direction, int radius) {
+	move_cmd_next.active = 0;
 	float speed = current_speed;
 	float rotation_speed = angular_speed; /* [inc/ms] */
 	float min_speed = c_speed_drop * c_vmax;
@@ -1012,7 +1025,6 @@ void move_to(long x, long y, char direction, int radius) {
 		float abs_speed = absf(speed);
 		float abs_rotation_speed = absf(rotation_speed);
 		
-		
 		// speed
 		if(ss != direction) {
 			start_packet('F');
@@ -1030,6 +1042,19 @@ void move_to(long x, long y, char direction, int radius) {
 				if(slowdown_phase == 0) {
 					slowdown_phase = 1;
 					start_dist = dist;
+					if(move_cmd_next.active) {
+						v = c_vmax;
+						w = w_div_v * v;
+						if(w > c_omega) {
+							w = c_omega;
+							v = v_div_w * w;
+							if(v > c_vmax) {
+								current_status = STATUS_ERROR;
+								return;
+							}
+						}
+						min_speed = v;
+					}
 				}
 				// slow down
 				if(sys_time - ls > c_tmr) {
@@ -1042,16 +1067,30 @@ void move_to(long x, long y, char direction, int radius) {
 				speed = dval(ss, maxf(min_speed, abs_speed-accel ));
 				
 				if(dist < 2.0f) {
-					d_ref = D;
-					break;
+					if(move_cmd_next.active == 1) {
+						start_packet('N');
+						end_packet();
+						move_cmd_next.active = 0;
+						direction = move_cmd_next.direction;
+						x = move_cmd_next.x;
+						y = move_cmd_next.y;
+						radius = move_cmd_next.radius;
+						min_speed = c_speed_drop * c_vmax;
+						slowdown_phase = 0;
+						continue;
+					} else {
+						d_ref = D;
+						break;
+					}
 				}
 				
 				if(speed <= min_speed || dist < 2.0f) {
 					accel = minf(accel * dist / start_dist, accel);
 					
 					speed = dval(ss, maxf(0.0f, abs_speed - accel));
-					if(speed == 0.0f) {
+					if(move_cmd_next.active != 1 && speed == 0.0f) {
 						d_ref = D;
+						
 						break;
 					}
 				}
