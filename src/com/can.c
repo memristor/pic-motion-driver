@@ -18,6 +18,7 @@
 #include "can.h"
 #include <stdint.h>
 
+#include "../bootloader.h"
 
 
 ECAN1BUF can_buf __attribute__((space(dma),aligned(32*16)));
@@ -47,19 +48,19 @@ static void dma2init(void){
 	*/
 	
 	DMACS0=0;
-     DMA2CON=0x0020;
-	 DMA2PAD=0x0440;	/* ECAN 1 (C1RXD) */
- 	 DMA2CNT=0x0007;
-	 DMA2REQ=0x0022;	/* ECAN 1 Receive */
-	 DMA2STA= __builtin_dmaoffset(can_buf);	
-	 DMA2CONbits.CHEN=1;
+	DMA2CON=0x0020;
+	DMA2PAD=0x0440;	/* ECAN 1 (C1RXD) */
+	DMA2CNT=0x0007;
+	DMA2REQ=0x0022;	/* ECAN 1 Receive */
+	DMA2STA= __builtin_dmaoffset(can_buf);	
+	DMA2CONbits.CHEN=1;
 }
 
 /* CAN Baud Rate Configuration 		*/
-#define FCAN  	30000000
-#define BITRATE 125000
+#define CHIP_FREQUENCY 30000000
+#define BITRATE 500000
 #define NTQ 	20		// 20 Time Quanta in a Bit Time
-#define BRP_VAL		((FCAN/(2*NTQ*BITRATE))-1)
+#define BRP_VAL		((CHIP_FREQUENCY/(2*NTQ*BITRATE))-1)
 
 /*
  * some predefined configs
@@ -71,7 +72,7 @@ static void set_bitrate(int val) {
 		/* Synchronization Jump Width set to 4 TQ */
 		C1CFG1bits.SJW = 0x3;
 		/* Baud Rate Prescaler */
-		C1CFG1bits.BRP = (FCAN/(2*20*125000))-1;
+		C1CFG1bits.BRP = (CHIP_FREQUENCY/(2*20*125000))-1;
 		// C1CFG1bits.BRP = -1; // very low baud for testing
 		/* Phase Segment 1 time is 8 TQ */
 		C1CFG2bits.SEG1PH=0x7;
@@ -104,19 +105,30 @@ static void set_bitrate(int val) {
 		
 	} else if(val == 530) { // 500Kbps on 30Mhz clock but less TQ
 		/* Synchronization Jump Width set to 4 TQ */
+		const long chip_clock = CHIP_FREQUENCY;
+		const long can_freq = 500000;
+		const long TQ = 15;
+		
+		// 4 TQ
 		C1CFG1bits.SJW = 0x3;
+		
 		/* Baud Rate Prescaler */
-		C1CFG1bits.BRP = (30000000/(2*15*500000))-1;
+		C1CFG1bits.BRP = (chip_clock/(2*TQ*can_freq))-1;
+		
 		// C1CFG1bits.BRP = -1; // very low baud for testing
 
 		/* Phase Segment 1 time is 8 TQ */
 		C1CFG2bits.SEG1PH=0x6;
+		
 		/* Phase Segment 2 time is set to be programmable */
 		C1CFG2bits.SEG2PHTS = 0x1;
+		
 		/* Phase Segment 2 time is 3 TQ */
 		C1CFG2bits.SEG2PH = 0x2;
+		
 		/* Propagation Segment time is 8 TQ */
 		C1CFG2bits.PRSEG = 0x3;
+		
 		/* Bus line is sampled three times at the sample point */
 		C1CFG2bits.SAM = 0x1;
 	}
@@ -140,7 +152,7 @@ static void can_clk_init(void){
 	set_bitrate(530);
 }
 
-unsigned int* can_get_packet() {
+uint16_t* BOOT can_get_packet() {
 	if(C1RXFUL1 == 0 && C1RXFUL2 == 0) {
 		return 0;
 	}
@@ -155,7 +167,7 @@ unsigned int* can_get_packet() {
 	return can_buf[nbuf];
 }
 
-unsigned int* can_get_free_tx_buffer() {
+uint16_t* can_get_free_tx_buffer() {
 	uint16_t* r = (uint16_t*)&C1TR01CON;
 	
 	int i=0;
@@ -180,7 +192,7 @@ void can_send_tx_buffer(unsigned int* buf) {
 	int diff = buf-(uint16_t*)can_buf[0];
 	if(diff < 0 || diff >= ECAN1_MSG_LENGTH*ECAN1_BUF_TX_LENGTH) return;
 	int nbuf = (int)(diff >> 3);
-	unsigned int* b = can_buf[nbuf];
+	// unsigned int* b = can_buf[nbuf];
 	// if((b[2] & 0xf) == 0) return;
 	unsigned int* r = (unsigned int*)&C1TR01CON;
 	r += (nbuf >> 1);
@@ -207,7 +219,6 @@ void can_write_rx_accept_filter(int n, long identifier, unsigned int exide, unsi
 	maskSelRegAddr = (unsigned int *)(&C1FMSKSEL1 + (n / 8));
 	fltEnRegAddr = (unsigned int *)(&C1FEN1);
 
-
 	// Bit-filed manupulation to write to Filter identifier register
 	if(exide==1) { 	// Filter Extended Identifier
 		eid15_0 = (identifier & 0xFFFF);
@@ -223,7 +234,6 @@ void can_write_rx_accept_filter(int n, long identifier, unsigned int exide, unsi
 		*(sidRegAddr+1)=0;							// Write to CiRXFnEID Register
 	}
 
-
    *bufPntRegAddr = (*bufPntRegAddr) & (0xFFFF ^ (0xF << (4 * (n & 3)))); // clear nibble
    *bufPntRegAddr = ((bufPnt << (4 * (n & 3))) | (*bufPntRegAddr));       // Write to C1BUFPNTn Register
 
@@ -233,8 +243,6 @@ void can_write_rx_accept_filter(int n, long identifier, unsigned int exide, unsi
    *fltEnRegAddr = ((0x1 << n) | (*fltEnRegAddr)); // Write to C1FEN1 Register
 
    C1CTRL1bits.WIN=0;
-
-
 }
 
 void can_disable_rx_accept_filter(int n) {
@@ -268,24 +276,24 @@ void can_write_rx_accept_mask(int m, long identifier, unsigned int mide, unsigne
 		eid17_16= (identifier>>16) & 0x3;
 		sid10_0 = (identifier>>18) & 0x7FF;
 
-		*maskRegAddr = ((sid10_0)<<5) +  + eid17_16;	// Write to CiRXMnSID Register
+		*maskRegAddr = ((sid10_0)<<5) +  + eid17_16; // Write to CiRXMnSID Register
 		
 		if(mide==1) {
 			*maskRegAddr |= 0x0008;
 		}
 			
-	    *(maskRegAddr+1) = eid15_0;					// Write to CiRXMnEID Register
+	    *(maskRegAddr+1) = eid15_0;	// Write to CiRXMnEID Register
 
 	} else {
 		// Filter Standard Identifier
 		sid10_0 = (identifier & 0x7FF);			
-		*maskRegAddr=((sid10_0)<<5);					// Write to CiRXMnSID Register
+		*maskRegAddr=((sid10_0)<<5); // Write to CiRXMnSID Register
 			
 		if(mide==1) {
 			*maskRegAddr |= 0x0008;
 		}
 		
-		*(maskRegAddr+1) = 0;							// Write to CiRXMnEID Register
+		*(maskRegAddr+1) = 0; // Write to CiRXMnEID Register
 	}
 
 	C1CTRL1bits.WIN=0;	
@@ -295,11 +303,8 @@ void can_write_rx_accept_mask(int m, long identifier, unsigned int mide, unsigne
 #define C1RX_pin 5
 
 void can_set_rx_id(long rx_id) {
-	can_set_mode(can_config_mode);
 	can_write_rx_accept_filter(0, rx_id, 1, 15, 0);
 	can_write_rx_accept_mask(0, 0x1FFFFFFF, 1, 1);
-	
-	can_set_mode(can_normal_mode);
 }
 
 void can_init_pins(void) {
@@ -313,55 +318,61 @@ void can_set_mode(int mode) {
 	while(C1CTRL1bits.OPMODE!=mode);
 }
 
-void can_init(void) {
+void can_init(int can_id, int use_eid) {
 	// pin config, pages 170-194
 	dma1init();
 	dma2init();
-	/* Enter Config Mode */
+	
+	// Enter Config Mode
 	can_set_mode(can_config_mode);
 
+	// init CAN clock
 	can_clk_init();	
 
-	C1FCTRLbits.FSA=20;		/* FIFO Starts at Message Buffer 20 */
-	C1FCTRLbits.DMABS=0b110;		/* 32 CAN Message Buffers in DMA RAM */
+	// FIFO Starts at Message Buffer 20
+	C1FCTRLbits.FSA=20;
+	
+	// 32 CAN Message Buffers in DMA RAM
+	C1FCTRLbits.DMABS=0b110;
 	
 	C1FEN1 = 0;
 	
 	// can_write_rx_accept_filter(1,600,1,14,1);
 	// can_write_rx_accept_mask(1,0x1FFFFFFF,1,1);
 	
-	/* Enter Normal Mode */
+	can_set_default_id(can_id, use_eid, 0);
+	can_set_rx_id(can_id);
+	
+	// Enter Normal Mode
 	can_set_mode(can_normal_mode);
 	
-	/* ECAN transmit/receive message control */
+	// ECAN transmit/receive message control
 	C1RXFUL1=C1RXFUL2=C1RXOVF1=C1RXOVF2=0x0000;
 	
 	// enable all buffers
-	C1TR01CONbits.TXEN0=1;			/* ECAN1, Buffer 0 is a Transmit Buffer */
-	C1TR01CONbits.TXEN1=1;			/* ECAN1, Buffer 1 is a Transmit Buffer */
-	C1TR23CONbits.TXEN2=1;			/* ECAN1, Buffer 2 is a Transmit Buffer */
-	C1TR23CONbits.TXEN3=1;			/* ECAN1, Buffer 3 is a Transmit Buffer */
-	C1TR45CONbits.TXEN4=1;			/* ECAN1, Buffer 4 is a Transmit Buffer */
-	C1TR45CONbits.TXEN5=1;			/* ECAN1, Buffer 5 is a Transmit Buffer */
-	C1TR67CONbits.TXEN6=1;			/* ECAN1, Buffer 5 is a Transmit Buffer */
-	C1TR67CONbits.TXEN7=1;			/* ECAN1, Buffer 5 is a Transmit Buffer */
+	C1TR01CONbits.TXEN0=1;
+	C1TR01CONbits.TXEN1=1;
+	C1TR23CONbits.TXEN2=1;
+	C1TR23CONbits.TXEN3=1;
+	C1TR45CONbits.TXEN4=1;
+	C1TR45CONbits.TXEN5=1;
+	C1TR67CONbits.TXEN6=1;
+	C1TR67CONbits.TXEN7=1;
 
-	// set priorities
-	C1TR01CONbits.TX0PRI=0b11; 		/* Message Buffer 0 Priority Level */
-	C1TR01CONbits.TX1PRI=0b11; 		/* Message Buffer 1 Priority Level */
-	C1TR23CONbits.TX2PRI=0b11; 		/* Message Buffer 2 Priority Level */
-	C1TR23CONbits.TX3PRI=0b11; 		/* Message Buffer 3 Priority Level */
-	C1TR45CONbits.TX4PRI=0b11; 		/* Message Buffer 4 Priority Level */
-	C1TR45CONbits.TX5PRI=0b11; 		/* Message Buffer 5 Priority Level */
-	C1TR67CONbits.TX6PRI=0b11; 		/* Message Buffer 5 Priority Level */
-	C1TR67CONbits.TX7PRI=0b11; 		/* Message Buffer 5 Priority Level */
+	// set priorities (same priorities)
+	C1TR01CONbits.TX0PRI=0b11;
+	C1TR01CONbits.TX1PRI=0b11;
+	C1TR23CONbits.TX2PRI=0b11;
+	C1TR23CONbits.TX3PRI=0b11;
+	C1TR45CONbits.TX4PRI=0b11;
+	C1TR45CONbits.TX5PRI=0b11;
+	C1TR67CONbits.TX6PRI=0b11;
+	C1TR67CONbits.TX7PRI=0b11;
 	
-	
+	// enable interrupts
 	IEC2bits.C1IE = 1;
 	C1INTEbits.TBIE = 1;	
 	C1INTEbits.RBIE = 1;
-	
-	//__delay_ms(100);
 }
 
 
@@ -508,19 +519,17 @@ void can_write_tx_default_id(unsigned int* buf) {
 
 */
 void can_write_tx_msg_buf_data(unsigned int* buf, unsigned int dataLength, unsigned int data1, unsigned int data2, unsigned int data3, unsigned int data4) {
-
 	buf[2] = ((buf[2] & 0xFFF0) + dataLength);
 	buf[3] = data1;
 	buf[4] = data2;
 	buf[5] = data3;
 	buf[6] = data4;
-
 }
 
 
 void __attribute__((interrupt, no_auto_psv))_C1Interrupt(void)  
 {    
-	IFS2bits.C1IF = 0;        // clear interrupt flag
+	IFS2bits.C1IF = 0; // clear interrupt flag
 
 	if(C1INTFbits.TBIF) {
 		C1INTFbits.TBIF = 0;

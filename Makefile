@@ -1,45 +1,76 @@
 TOOLCHAIN_PATH := /opt/microchip/xc16/v1.30/bin/
 TOOLCHAIN := $(TOOLCHAIN_PATH)xc16-
 
+.PHONY: sim, config
+
 src := \
 	src/main.c \
-	src/uart.c \
+	src/com/uart.c \
+	src/com/can.c \
+	src/com/packet.c \
+	src/drive/encoder.c \
+	src/drive/motor.c \
 	src/timer.c \
-	src/encoder.c \
-	src/motor.c \
-	src/math.c \
+	src/util/math.c \
 	src/regulator.c \
 	src/config.c \
-	src/queue.c \
-	src/can.c \
-	src/packet.c \
-
+	src/init.c \
+	src/bootloader.c
+	
+sim_src := \
+	src/regulator.c \
+	src/config.c \
+	src/main.sim.c \
+	src/init.sim.c \
+	src/com/packet.c \
+	src/util/math.c \
+	src/timer.sim.c \
+	src/drive/motor.sim.c \
+	src/drive/encoder.sim.c \
+	src/com/uart.sim.c \
+	src/com/can.sim.c
 
 obj := $(patsubst %.c,%.o,$(src))
 
 robot := big
 
-test.hex: test.elf
-	$(TOOLCHAIN)bin2hex test.elf
+##########################################
 
-test.elf: $(obj)
-	$(TOOLCHAIN)gcc $^ -o $@ -T p33FJ128MC802.gld -mcpu=33FJ128MC802 -omf=elf \
-		-Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-sections,\
+app := AppImage
+
+$(app).hex: config AppImage.elf
+	$(TOOLCHAIN)bin2hex -a AppImage.elf
+	
+report_flags := -Wa,-alh,-L -Wl,--report-mem 
+flags := -Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-sections,\
 		--data-init,--pack-data,--handles,--isr,--no-gc-sections,--fill-upper=0,\
 		--stackguard=16,--library-path="..",--no-force-link,--smart-io
+# 		--ROM,default,-e000-11ff
+		
+$(app).elf: $(obj)
+	$(TOOLCHAIN)gcc $^ -o $@ -T p33FJ128MC802.gld -mcpu=33FJ128MC802 -omf=elf $(flags) $(report_flags) -Wfatal-error
+
 
 %.o: %.c
 	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
 
 config:
-	python3 config_keys_gen.py mcu $(robot) > src/config_keys.h
+	python3 conf/gen_config.py mcu $(robot) > src/config_keys.h
 
 js:
-	python3 config_keys_gen.py js $(robot) > config_const.js
+	python3 conf/gen_config.py js $(robot) > config_const.js
 	
 py:
-	python3 config_keys_gen.py py $(robot) > const.py
+	python3 conf/gen_config.py py $(robot) > const_motion.py
+	
+sim: $(sim_src)
+	gcc $^ -o sim -DSIM -lm -pthread
 
+upload:
+	mkdir -p tmp; cd tmp; sudo java -jar /opt/microchip/mplabx/v4.15/mplab_ipe/ipecmd.jar -TPPK3 -P33FJ128MC802 -M -F../AppImage.hex; sudo rm -rf tmp
+	
+	
 clean:
-	rm -f src/*.o
-	rm -f test.elf test.hex
+	rm -f const_motion.py config_const.js src/config_keys.h
+	rm -f src/*.o src/drive/*.o src/com/*.o src/util/*.o
+	rm -f $(app).elf $(app).hex regions.txt

@@ -1,7 +1,7 @@
 #include <p33FJ128MC802.h>
 #include "motor.h"
-#include "math.h"
-#include "config.h"
+#include "../util/math.h"
+#include "../config.h"
 
 void on_motor_speed_limit_change() {
 	// c_motor_speed_limit = clip(-MOTOR_MAX_SPEED, MOTOR_MAX_SPEED, c_motor_speed_limit);
@@ -69,7 +69,7 @@ int left_motor_pwm = 0;
 int right_motor_pwm = 0;
 
 void motor_left_set_power(int power) {
-	power = clip(-c_motor_speed_limit, c_motor_speed_limit, power);
+	power = clip(-c_motor_speed_limit, min(c_motor_speed_limit, c_left_motor_speed_limit), power);
 	power = clip(left_motor_pwm-c_motor_rate_of_change, left_motor_pwm+c_motor_rate_of_change, power);
 	
 	left_motor_pwm = power;
@@ -88,7 +88,7 @@ void motor_left_set_power(int power) {
 }
 
 void motor_right_set_power(int power) {
-	power = clip(-c_motor_speed_limit, c_motor_speed_limit, power);
+	power = clip(-c_motor_speed_limit, min(c_motor_speed_limit, c_right_motor_speed_limit), power);
 	power = clip(right_motor_pwm-c_motor_rate_of_change, right_motor_pwm+c_motor_rate_of_change, power);
 
 	right_motor_pwm = power;

@@ -1,19 +1,12 @@
-#define FCY 29491200ULL
-#include <p33FJ128MC802.h>
-#include <libpic30.h>
-
 #include "regulator.h"
 #include "config.h"
-#include "init.h"
 #include "com/packet.h"
 #include "bootloader.h"
-#include "drive/motor.h"
+#include "init.h"
 
-#pragma config FWDTEN = OFF, \
-			   FNOSC = FRCPLL
-			   
+   
 int main(void) {
-	int tmpX, tmpY, tmp, tmpO;
+	int16_t tmpX, tmpY, tmp, tmpO;
 	char command, v, direction, tmpSU;
 
 	initialize();
@@ -27,7 +20,8 @@ int main(void) {
 		if(!pkt) continue;
 		
 		command = pkt->type;
-
+		
+		printf("got pkt: %c (%x)\n", pkt->type, pkt->type);
 		reset_stuck();
 		switch(command)
 		{
@@ -78,6 +72,7 @@ int main(void) {
 				// move forward [mm]
 			case CMD_FORWARD:
 				tmp = get_word();
+				printf("gw: %d\n", tmp);
 				v = get_byte();
 				forward(tmp, v);
 				break;
@@ -114,6 +109,7 @@ int main(void) {
 
 				// void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 				arc(tmpX, tmpY, tmpO, tmpSU, direction);
+
 				break;
 			
 				// x [mm], y [mm], direction {-1 - backwards, 0 - pick closest, 1 - forward}
@@ -148,24 +144,13 @@ int main(void) {
 				reset_stuck();
 				break;
 			
-			/*
 			case 'E':
 				start_packet('E');
 				put_byte(pkt->size);
 				end_packet();
 				break;
-			case 'e':{
-					uint8_t cnt = 0;
-					while(1) {
-						start_packet('e');
-							put_byte(cnt);
-						end_packet();
-						cnt++;
-						__delay_ms(1);
-					}
-				}
-				break;
-			*/
+				
+				
 			case CMD_MOTOR: {
 				tmpX = get_word();
 				tmpY = get_word();
@@ -173,69 +158,12 @@ int main(void) {
 				break;
 			}
 			
-			case CMD_MOTOR_INIT: {
-				motor_init();
-			}
 			
-			/*
-			case '.': {
-				uint32_t adr = get_long();
-				uint16_t len = get_word();
-				
-				uint8_t d[64*3];
-				
-				_DISI = 1;
-				// SRbits.IPL = 7;
-				while(len > 0) {
-					int block = 64;
-					if(len < block) block = len;
-					read_prog_mem(adr, d, block);
-					
-					int i;
-					int left = len*3;
-					int ofs = 0;
-					int c = 0;
-					while(left > 0) {
-						int l = 7;
-						if(left < l) l = left;
-						start_packet('r');
-							for(i=0; i < l; i++) {
-								put_byte(d[ofs+i]);
-							}
-						end_packet();
-						__delay_ms(1);
-						left -= l;
-						ofs += l;
-					}
-					adr += 64*2;
-					len -= block;
-				}
-				break;
-			}
-			case ']': {
-				uint32_t adr = get_long();
-				
-				
-				
-				// start_packet('[');
-				// end_packet();
-				
-				// uint8_t d[6];
-				// int i;
-				// for(i=0; i < 3; i++) {
-					// d[i] = get_byte();
-				// }
-				
-				// _DISI = 1;
-				
-				// _GIE = 1;
-				
-				break;
-			}
-			*/
+			
 
 			default:
 				force_status(STATUS_ERROR);
+				break;
 		}
 		
 		report_status();

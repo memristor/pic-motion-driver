@@ -19,9 +19,13 @@ Use `mplab_ipe` located by default at: `/opt/microchip/mplabx/v3.50/mplab_ipe/mp
 - Run `mplab_ipe` to upload .hex
 
 
-## generating config
-make config robot=big/small
-make config robot=big
-make config robot=small
-make py robot=big(small)
-make js robot=big(small)
+## Generating config
+make config robot=big\
+make py robot=big\
+make js robot=big\
+make robot=big
+
+
+## Robot Axis
+X is forward
+Y is 90 deg CCW from X (as natural)

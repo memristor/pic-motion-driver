@@ -30,9 +30,7 @@ void uart_init(long baud)
 	rx_index1 = rx_index2 = rxCounter = 0;
 
 	U1MODEbits.UARTEN = 1;  // Enable UART
-	U1STAbits.UTXEN = 1;
-	
-	__delay_ms(100);
+	U1STAbits.UTXEN = 1;	
 }
 
 inline char uart_busy(void)
@@ -151,8 +149,9 @@ void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
 
 	if(status == 0)
 	{
-		if(++rx_index1 == RX_BUF_LEN)
+		if(++rx_index1 == RX_BUF_LEN) {
 			rx_index1 = 0;
+		}
 		rx_buf[rx_index1] = rxData;
 		rxCounter++;
 	}
@@ -163,14 +162,6 @@ void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
 }
 
 // ------------[ RX PACKET ]--------------
-
-/*
-	@param
-		length - pointer to byte where length will be written if packet is found
-	@return
-		0 - no packet found
-		other - pointer to data of length set by this function (in this data)
-*/
 
 static uint8_t rx_get(void) {
 	if(++rx_index2 >= RX_BUF_LEN) {
@@ -206,7 +197,16 @@ Packet* uart_try_read_packet(void) {
 					rx_pkt_wait_for_data = 1;
 					break;
 				}
-			}
+				
+				if(rx_pkt_wait_for_data == 0) {
+					// int can = packet_can_enabled();
+					// if(can == 1) packet_enable_can(0);
+					start_packet('F');
+						put_byte(rx_pkt.type);
+					end_packet();
+					// if(can == 1) packet_enable_can(1);
+				}
+			}			
 		}
 	}
 	
@@ -230,13 +230,13 @@ Packet* uart_try_read_packet(void) {
 		rx_pkt_wait_for_data = 0;
 	}
 	
-	SRbits.IPL = 7;
+	interrupt_lock
 	if(rxCounter >= read) {
 		rxCounter -= read;
 	} else {
 		rxCounter = 0;
 	}
-	SRbits.IPL = 0;
+	interrupt_unlock
 	
 	
 	if(pass) {
@@ -246,6 +246,7 @@ Packet* uart_try_read_packet(void) {
 		if(can == 1) packet_enable_can(0);
 		start_packet('A');
 			put_byte(rx_pkt.type);
+			put_byte(packet_get_free_packets());
 		end_packet();
 		if(can == 1) packet_enable_can(1);
 		
@@ -264,24 +265,30 @@ Packet* uart_try_read_packet(void) {
 static Packet* volatile tx_pkt_sending = 0;
 
 void uart_start_sending_packet(Packet* p) {
-	if(!p || tx_pkt_sending != 0) return;
+	if((p == 0) || (tx_pkt_sending != 0)) return;
 	tx_pkt_sending = p;
 	tx_pkt_sending->status = sending;
-	U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
+	tx_pkt_sending->cursor = 0;
+	if(U1STAbits.UTXBF == 0) {
+		U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor];
+		tx_pkt_sending->cursor++;
+	}
 }
 
 void __attribute__((__interrupt__,no_auto_psv)) _U1TXInterrupt(void)
 {
+	IFS0bits.U1TXIF = 0;
 	if(tx_pkt_sending != 0) {
-		U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor++];
+		if(U1STAbits.UTXBF == 0) {
+			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor];
+			tx_pkt_sending->cursor++;
+		}
 		if(tx_pkt_sending->cursor >= tx_pkt_sending->size + PACKET_HEADER) {
 			packet_free_packet(tx_pkt_sending);
 			tx_pkt_sending = 0;
 			uart_start_sending_packet(packet_sending_queue_pop());
 		}
 	}
-
-	IFS0bits.U1TXIF = 0;
 }
 
 

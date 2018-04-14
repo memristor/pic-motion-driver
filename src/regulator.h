@@ -45,19 +45,19 @@
 
 
 // unit conversions
-#define MILIMETER_TO_2INC(x) 			(((long long)(x) << 1)*K2)
-#define MILIMETER_TO_INC(x) 			((long)(x)*K2)
-#define INC_TO_MILIMETER(x) 			((x) / K2)
-#define DOUBLED_INC_TO_MILIMETER(x) 	(((x) / 2) / K2)
+#define MM_TO_DINC(x) 			(((long long)(x) << 1)*K2)
+#define MM_TO_INC(x) 			((long)(x)*K2)
+#define INC_TO_MM(x) 			((x) / K2)
+#define DINC_TO_MM(x) 	(((x) / 2) / K2)
 #define DEG_TO_INC_ANGLE(x) 			((long)(x)*K1/360)
 #define INC_TO_DEG_ANGLE(x) 			((x)*360/K1)
 #define RAD_TO_INC_ANGLE(x) 			((x)/(2.0*PI)*K1)
 #define RAD_TO_DEG_ANGLE(x) 			((x)*180.0/PI)
 
-
+#define RUN_EACH_NTH_CYCLES(counter_type, nth, run) { static counter_type _cycle_ = 0; if(nth > 0 && ++_cycle_ >= nth) { _cycle_ = 0; run; } }
 
 // stuck detection variables
-#define STUCK_DISTANCE_JUMP_ERROR_THRESHOLD MILIMETER_TO_INC(400)
+#define STUCK_DISTANCE_JUMP_ERROR_THRESHOLD MM_TO_INC(400)
 #define STUCK_ROTATION_JUMP_ERROR_THRESHOLD DEG_TO_INC_ANGLE(180)
 
 #define STUCK_DISTANCE_MAX_FAIL_COUNT 200
@@ -66,14 +66,14 @@
 // --- regulator PD (proportional, differential) components, trial & error ---
 // depends on timer interrupt period
 
-// for distance regulator
-#define Gp_D	5.5
-#define Gd_D	200
-
-// for rotation regulator
-#define Gp_T	3
-#define Gd_T	90
-
+#ifndef SIM
+	#define INTERRUPT __attribute__((interrupt(auto_psv)))
+	#define TIMER0_INTRET IFS0bits.T1IF = 0;
+#else
+	#define INTERRUPT
+	#define TIMER0_INTRET
+	#define __delay_ms(x) usleep(x*1000)
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -90,6 +90,7 @@ void regulator_init(void);
 void reset_driver(void);
 void reset_stuck(void);
 
+// standard commands
 void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction);
 void forward(int length, unsigned char end_speed);
 void rotate_absolute_angle(int angle);
@@ -110,7 +111,9 @@ enum State get_status(void);
 void force_status(enum State);
 
 void smooth_stop(void);
-void calculate_K();
+void soft_stop(void);
+
+
 
 #endif	/* REGULACIJA_H */
 

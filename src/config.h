@@ -15,23 +15,38 @@
 #define CONFIG_INT_OFFSET (CONFIG_MAX_BYTES)
 #define CONFIG_FLOAT_OFFSET (CONFIG_INT_OFFSET+CONFIG_MAX_INTS)
 
+// diagnostics
+extern int8_t config_changed[CONFIG_MAX];
+
+
 extern int8_t config_bytes[CONFIG_MAX_BYTES];
 extern int16_t config_ints[CONFIG_MAX_INTS];
 extern float config_floats[CONFIG_MAX_FLOATS];
 
-void config_load(int length, uint8_t* stream); // reads all keys from stream
-uint32_t config_get_as_uint32(int key);
+void config_save_to_program_memory();
 
-extern inline int config_get_b(int key);
-extern inline int config_get_i(int key);
-extern inline float config_get_f(int key);
+void config_load(int length, uint8_t* stream); // reads all keys from stream
+
+void config_set_as_fixed_point(int key, int32_t value, int exponent);
+int config_get_as_fixed_point(int key, int32_t* value, int *exponent, int *sign);
+
+static inline int config_get_b(int key) {
+	return config_bytes[key-CONFIG_BYTE_OFFSET];
+}
+
+static inline int config_get_i(int key) {
+	return config_ints[key-CONFIG_INT_OFFSET];
+}
+
+static inline float config_get_f(int key) {
+	return config_floats[key-CONFIG_FLOAT_OFFSET];
+}
 
 void config_init(void);
 
 void config_set_b(int key, int8_t value);
 void config_set_i(int key, int value);
 void config_set_f(int key, float value);
-void config_set_as_uint32(int key, uint32_t value);
 
 typedef void (*ConfigCallback)(void);
 void config_on_change(int key, ConfigCallback callback);

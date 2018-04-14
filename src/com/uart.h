@@ -7,8 +7,11 @@
 #define RX_BUF_LEN  100
 #define RX_BUF_MASK  0x0f
 
+#ifndef SIM
 #ifndef FCY
-#define FCY 29491200ULL
+	#define FCY 29491200ULL
+	#include <p33FJ128MC802.h>
+#endif
 #endif
 
 void uart_init(long);
@@ -35,6 +38,13 @@ Packet* uart_try_read_packet(void);
 uint8_t uart_get_byte(void);
 uint16_t uart_get_word(void);
 
+#ifndef SIM
+#define interrupt_lock SRbits.IPL = 7;
+#define interrupt_unlock SRbits.IPL = 0;
+#else
+#define interrupt_lock
+#define interrupt_unlock
+#endif
 
 // writing packet
 char uart_can_send_packet(void);

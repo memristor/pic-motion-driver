@@ -5,92 +5,24 @@
 
 const int sinus[SINUS_MAX];
 
-inline long absl(long a)
-{
-	return a >= 0 ? a : -a;
-}
-inline float absf(float a)
-{
-	return a >= 0 ? a : -a;
-}
-
-inline float dfval(float dir, float val) {
-	if(dir >= 0) {
-		return val;
-	} else {
-		return -val;
-	}
-}
-inline float dval(char dir, float val) {
-	if(dir >= 0) {
-		return val;
-	} else {
-		return -val;
-	}
-}
-
-inline long long clipll(long long a, long long b, long long value) {
-	if(value <= a)
-		value = a;
-	else if(value > b)
-		value = b;
-	return value;
-}
-
-inline int clip(int a, int b, int value) {
-	if(value <= a)
-		value = a;
-	else if(value > b)
-		value = b;
-	return value;
-}
-
 int deg_angle_range_fix(int angle) {
-	while(angle > 180)
+	while(angle > 180) {
 		angle -= 360;
-	while(angle < -180)
+	}
+	while(angle < -180) {
 		angle += 360;
+	}
 	return angle;
 }
 
 float rad_angle_range_fix(float angle) {
-	while(angle > PI)
+	while(angle > PI) {
 		angle -= 2*PI;
-	while(angle < -PI)
+	}
+	while(angle < -PI) {
 		angle += 2*PI;
+	}
 	return angle;
-}
-
-
-
-inline int sign(int x) {
-	return x >= 0L ? 1 : -1;
-}
-inline long signl(long x) {
-	return x >= 0L ? 1 : -1;
-}
-/*
-float signf(float x) {
-	return x >= 0.0f ? 1.0f : -1.0f;
-}
-*/
-inline char signf(float x) {
-	return x >= 0.0f ? 1 : -1;
-}
-
-
-inline float minf(float a, float b) {
-	return a < b ? a : b;
-}
-inline float maxf(float a, float b) {
-	return a > b ? a : b;
-}
-
-long minl(long a, long b) {
-	return a < b ? a : b;
-}
-long maxl(long a, long b) {
-	return a > b ? a : b;
 }
 
 uint32_t uint32_log10(uint32_t v) {
@@ -106,37 +38,36 @@ void sin_cos(long theta, long *sint, long *cost) {
 		theta = theta;
 		*sint = sinus[theta];
 		*cost = sinus[SINUS_MAX-1 - theta];
-	}
-	else 
-	{
+	} else {
 		if(theta < 2*SINUS_MAX) // 2nd quadrant
 		{
 			theta = theta - SINUS_MAX;
 			*sint = sinus[SINUS_MAX-1 - theta];
 			*cost = -sinus[theta];
-		}
-		else
+		} else {
 			if(theta < 3*SINUS_MAX) // 3rd quadrant
 			{
 				theta = theta - 2*SINUS_MAX;
 				*sint = -sinus[theta];
 				*cost = -sinus[SINUS_MAX-1 - theta];
 			}
-			else    // 4th quadrant
+			else // 4th quadrant
 			{
 				theta = theta - 3*SINUS_MAX;
 				*sint = -sinus[SINUS_MAX-1 - theta];
 				*cost = sinus[theta];
 			}
+		}
 	}
 }
 
 int deg_angle_diff(int a, int b) {
 	long d = a - b;
-	if(d > 180)
+	if(d > 180) {
 		d -= 360;
-	else if(d < -180)
+	} else if(d < -180) {
 		d += 360;
+	}
 	return d;
 }
 
@@ -175,7 +106,7 @@ float max3f(float a, float b, float c) {
 
 
 
-
+//------------------------------------------------------------------------------
 
 
 

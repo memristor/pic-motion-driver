@@ -4,7 +4,7 @@ int8_t config_bytes[CONFIG_MAX_BYTES];
 int16_t config_ints[CONFIG_MAX_INTS];
 float config_floats[CONFIG_MAX_FLOATS];
 
-#define EXPONENT_BITS 4
+#define MAX_EXPONENT_BITS 9
 
 static ConfigCallback config_callbacks[CONFIG_MAX];
 
@@ -20,16 +20,37 @@ static uint32_t load_uint32_bigendian(uint8_t* s) {
 }
 
 void config_load(int length, uint8_t* stream) {
-	while(length >= 5) {
+	// key uint32 sign exponent = 7 + cmd
+	while(length >= 7) {
 		int key = *stream++;
-		uint32_t val = load_uint32_bigendian(stream);
-		config_set_as_uint32(key, val);
+		int32_t val = load_uint32_bigendian(stream);
 		stream += 4;
-		length -= 5;
+		int sign = *stream++;
+		int exponent = *stream++;
+		config_set_as_fixed_point(key, sign ? -val : val, exponent);
+		length -= 7;
 	}
 }
 
-uint32_t config_get_as_uint32(int key) {
+void config_set_as_fixed_point(int key, int32_t value, int exponent) {
+	float exp = exponent;
+	float val = value / powf(10.0f, exp);
+	if(key >= CONFIG_MAX) return;
+	if(key < CONFIG_INT_OFFSET) {
+		config_bytes[key-CONFIG_BYTE_OFFSET] = val;
+	} else if(key < CONFIG_FLOAT_OFFSET) {
+		config_ints[key-CONFIG_INT_OFFSET] = val;	
+	} else { // float offset
+		config_floats[key-CONFIG_FLOAT_OFFSET] = val;
+	}
+	
+	ConfigCallback cb = config_callbacks[key];
+	if(cb != 0) {
+		cb();
+	}
+}
+
+int config_get_as_fixed_point(int key, int32_t* value, int *exponent, int *sign) {
 	if(key >= CONFIG_MAX) return 0;
 	
 	float val;
@@ -41,25 +62,19 @@ uint32_t config_get_as_uint32(int key) {
 		val = config_get_f(key);
 	}
 	
-	uint32_t exp = EXPONENT_BITS;
-	uint32_t r = val * powf(10.0f, exp);
-	return (r << exp) | (exp & ((1u<<EXPONENT_BITS)-1));
+	int fract_numbers = MAX_EXPONENT_BITS - ( (int)log10(fabsf(val)) + 1 );	
+	float exp = fract_numbers;
+	*value = val * powf(10.0f, exp);
+	*exponent = fract_numbers;
+	return 1;
+}
+
+void config_save_to_program_memory() {
+	
 }
 
 void config_on_change(int key, ConfigCallback callback) {
 	config_callbacks[key] = callback;
-}
-
-inline int config_get_b(int key) {
-	return config_bytes[key-CONFIG_BYTE_OFFSET];
-}
-
-inline int config_get_i(int key) {
-	return config_ints[key-CONFIG_INT_OFFSET];
-}
-
-inline float config_get_f(int key) {
-	return config_floats[key-CONFIG_FLOAT_OFFSET];
 }
 
 void config_set_i(int key, int value) {
@@ -93,20 +108,4 @@ void config_set_f(int key, float value) {
 }
 
 
-void config_set_as_uint32(int key, uint32_t value) {
-	float exp = (value & ((1u<<EXPONENT_BITS)-1));
-	float val = (value >> EXPONENT_BITS) / powf(10.0f, exp);
-	if(key >= CONFIG_MAX) return;
-	if(key < CONFIG_INT_OFFSET) {
-		config_bytes[key-CONFIG_BYTE_OFFSET] = val;
-	} else if(key < CONFIG_FLOAT_OFFSET) {
-		config_ints[key-CONFIG_INT_OFFSET] = val;	
-	} else { // float offset
-		config_floats[key-CONFIG_FLOAT_OFFSET] = val;
-	}
-	
-	ConfigCallback cb = config_callbacks[key];
-	if(cb != 0) {
-		cb();
-	}
-}
+
