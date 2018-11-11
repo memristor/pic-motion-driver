@@ -11,11 +11,12 @@ void encoder_init_pins(void) {
 }
 
 #include <stdio.h>
+#include "../util/math.h"
 int encoder_left_get_count(void) {
 	// printf("enc: %d\n", left_motor_pwm);
-	return left_motor_pwm;
+	return left_motor_pwm * 1;
 }
 
 int encoder_right_get_count(void) {
-	return right_motor_pwm;
+	return right_motor_pwm * 1;
 }

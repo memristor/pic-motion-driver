@@ -1,21 +1,35 @@
+#ifndef SIM
 #define FCY 29491200ULL
 #include <p33FJ128MC802.h>
 #include <libpic30.h>
+
+// #include "bootloader.h"
+#pragma config FWDTEN = OFF, \
+			   FNOSC = FRCPLL
+#endif
 
 #include "regulator.h"
 #include "config.h"
 #include "init.h"
 #include "com/packet.h"
-#include "bootloader.h"
 #include "drive/motor.h"
 
-#pragma config FWDTEN = OFF, \
-			   FNOSC = FRCPLL
-			   
+#ifdef SIM
+char* can_iface = "can0";
+int main(char argc, char* argv[]) {
+#else
 int main(void) {
-	int tmpX, tmpY, tmp, tmpO;
+#endif
+
+	int16_t tmpX, tmpY, tmp, tmpO;
 	char command, v, direction, tmpSU;
 
+	#ifdef SIM
+	if(argc > 1) {
+		can_iface = argv[1];
+	}
+	#endif
+	
 	initialize();
 	
 	start_packet('L');
@@ -25,9 +39,10 @@ int main(void) {
 	{
 		Packet* pkt = pkt=try_read_packet();
 		if(!pkt) continue;
-		
+		#ifdef SIM
+		printf("got pkt: %c (%x)\n", pkt->type, pkt->type);
+		#endif
 		command = pkt->type;
-
 		reset_stuck();
 		switch(command)
 		{
@@ -50,6 +65,32 @@ int main(void) {
 				int exponent;
 				int sign;
 				config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
+				start_packet(CMD_GET_CONFIG);
+					put_word(val >> 16);
+					put_word(val);
+					put_byte(sign);
+					put_byte(exponent);
+				end_packet();
+				break;
+			}
+			
+			case CMD_SET_CONFIG_HASH: {
+				int hash = get_word();
+				int32_t val = get_long();
+				int exp=get_byte();
+				int key = config_get_key(hash);
+				config_set_as_fixed_point(key, val, exp);
+				break;
+			}
+				
+			case CMD_GET_CONFIG_HASH: {
+				int hash = get_word();
+				uint32_t val;
+				int exponent;
+				int sign;
+				int key = config_get_key(hash);
+				config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
+				
 				start_packet(CMD_GET_CONFIG);
 					put_word(val >> 16);
 					put_word(val);
@@ -107,11 +148,10 @@ int main(void) {
 			case CMD_CURVE:
 				tmpX = get_word();
 				tmpY = get_word();
-				
 				tmpO = get_word();
-				tmpSU = get_word();
-				direction = get_byte();
-
+				tmp = get_byte();
+				tmpSU = (tmp & 1) ? 1 : 0;
+				direction = (tmp & 2) ? 1 : -1;
 				// void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 				arc(tmpX, tmpY, tmpO, tmpSU, direction);
 				break;
@@ -148,12 +188,17 @@ int main(void) {
 				reset_stuck();
 				break;
 			
-			/*
+			case CMD_LINEAR_OPTOCOUPLER:
+				cmd_pwm_opto();
+				break;
+			
+			
 			case 'E':
 				start_packet('E');
 				put_byte(pkt->size);
 				end_packet();
 				break;
+			/*
 			case 'e':{
 					uint8_t cnt = 0;
 					while(1) {

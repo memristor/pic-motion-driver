@@ -55,6 +55,8 @@ static inline long clipl(long a, long b, long value) {
 	return value;
 }
 
+#define clipl2(amp, value) clipl(-amp,amp, value)
+
 static inline long long clipll(long long a, long long b, long long value) {
 	if(value <= a)
 		value = a;

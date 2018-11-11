@@ -22,6 +22,9 @@ float R_wheel;
 float wheel_distance;
 double wheel_correction_coeff = 1.0;
 
+static int setpoint1_active = 0;
+static int setpoint2_active = 0;
+
 /*
 	c_vmax = max speed / ms
 	g_accel = speed_change / ms
@@ -35,18 +38,29 @@ static float g_alpha = 0;
 	g_alpha = rot_speed_change / ms
 */
 
+#ifdef SIM
+typedef double ldouble;
+#define dbg(...) printf(__VA_ARGS__)
+#else
+typedef long double ldouble;
+#define dbg(...)
+#endif
+
+#undef dbg
+#define dbg(...)
+
 // changes in interrupt, so here are all volatiles
-static volatile long double Xlong = 0, Ylong = 0;
+static volatile ldouble Xlong = 0, Ylong = 0;
 static volatile long X = 0, Y = 0;
 static volatile signed long current_speed=0, angular_speed=0;
 
 static volatile unsigned long sys_time = 0;
-static volatile long double positionL;
-static volatile long double positionR;
+static volatile ldouble positionL;
+static volatile ldouble positionR;
 
 // ----- variables for controlling robot -----
 static volatile float orientation = 0;
-static volatile long double L = 0; // total distance
+static volatile ldouble L = 0; // total distance
 static volatile long t_ref = 0, d_ref = 0;
 
 static volatile long prev_rotation_error = 0;
@@ -132,6 +146,13 @@ void INTERRUPT _INT2Interrupt(void) {
 	#endif
 	
 }
+
+struct regulator_t {
+	int last_dist;
+	int osc_count;
+	int speed_error_accum;
+};
+
 void INTERRUPT _T1Interrupt(void)
 {
 	sys_time++;
@@ -139,6 +160,8 @@ void INTERRUPT _T1Interrupt(void)
 	
 	static float vR;
 	static float vL;
+	
+	
 	
 	static long sint, cost;
 	
@@ -156,48 +179,19 @@ void INTERRUPT _T1Interrupt(void)
 	// read left encoder
 	vL = encoder_left_get_count();
 	positionL += vL*wheel_correction_coeff;
-	// positionL += vL;
 
 	// read right encoder
 	vR = encoder_right_get_count();
 	positionR += vR;
 
 	L = (positionL + positionR) / 2;
-
 	orientation = (positionR - positionL);
 	
 	// put orientation in interval [-K1/2, K1/2]
-	/*
-	if (orientation > 0)
-	{
-		while(orientation > K1)
-		{
-			orientation -= K1;
-		}
-	}
-	else
-	{
-		while( orientation < -K1 )
-		{
-			orientation = orientation + K1;
-		}
-
-	}
-	if(orientation > K1/2) {
-		orientation -= K1;
-	}
-	if(orientation < -K1/2) {
-		orientation += K1;
-	}
-	*/
-	
-	// TODO: test
 	if (orientation > 0) {
 		orientation = (long int)orientation % K1;
-		
 	} else {
 		orientation = -((-(long int)orientation) % K1);
-		
 	}
 	if(orientation > K1/2) {
 		orientation -= K1;
@@ -216,7 +210,7 @@ void INTERRUPT _T1Interrupt(void)
 
 	sin_cos(theta, &sint, &cost);
 	
-	d = vR + vL;
+	d = vR + vL; // used DINC_TO_MM because this wasn't divided by 2
 	x = d * cost;
 	y = d * sint;
 
@@ -232,25 +226,26 @@ void INTERRUPT _T1Interrupt(void)
 	current_speed = (vL + vR) / 2; // v = s/t, current_speed [inc/ms]
 	
 	// keep speed for some time if interrupted
-	
 	if(keep_count > 0) {
 		t_ref += keep_rotation;
 		d_ref += keep_speed;
-		keep_count--;
-		if(keep_count == 0) {
+		if(--keep_count == 0) {
 			current_status = STATUS_IDLE;
 		}
 	}
 	
-	
 	error = d_ref - L;
-	// printf("erorr: %ld d_ref: %ld\n", error, d_ref);
+	dbg("error_dist: %ld d_ref: %ld L: %lf K1: %ld K2: %f vL: %f vR: %f\n", error, d_ref, L, K1, K2, vL, vR);
+	
+	int speed_error = error - (-current_speed);
+	static float speed_accum_d = 0;
+	speed_accum_d += speed_error * c_accum_speed;
+	speed_accum_d = clip(-c_accum_clip, c_accum_clip, speed_accum_d);
 	
 	// PD (proportional, differential) regulator
-	regulator_distance = error * c_pid_d_p - c_pid_d_d * current_speed;
+	regulator_distance = error * c_pid_d_p - c_pid_d_d * current_speed + speed_accum_d * c_pid_d_i;
 
 	// ---------[ Distance Stuck Detection ]----------
-	
 	
 	if( c_enable_stuck == 1 ) {
 		if(absl(error-prev_distance_error) > MM_TO_INC(c_stuck_distance_jump)) {
@@ -284,10 +279,11 @@ void INTERRUPT _T1Interrupt(void)
 		error += K1;
 	}
 
-	int speed_error = error - (-angular_speed);
+	speed_error = error - (-angular_speed);
 	static float speed_accum = 0;
 	speed_accum += speed_error * c_accum_speed;
 	speed_accum = clip(-c_accum_clip, c_accum_clip, speed_accum);
+	
 	/*
 	start_packet('L');
 		put_word(angular_speed);
@@ -302,8 +298,10 @@ void INTERRUPT _T1Interrupt(void)
 		put_word(speed_error);
 	end_packet();
 	*/
+	
 	regulator_rotation = error * c_pid_r_p - (-angular_speed * c_pid_r_d) + speed_accum * c_pid_r_i; // PD (proportional, differential) regulator
 	
+	dbg("rot_error: %ld, reg_rot: %ld t_ref: %ld orientation: %lf\n", error, regulator_rotation, t_ref, orientation);
 	// ------------[ Rotation Stuck Detect ]---------------
 	
 	if( c_enable_stuck == 1 ) {
@@ -357,51 +355,56 @@ void INTERRUPT _T1Interrupt(void)
 		
 		static long error_accum1 = 0;
 		error = ((long)c_setpoint1 - positionL) * c_pid_lin1;
-		target_speed = clipl(-c_speed1, c_speed1, -error);
+		target_speed = clipl2(c_speed1, -error);
 		error_accum1 += (target_speed - (-vL)) * c_pid_i1;
 
-		if(absl(error) < c_tol1) {
-			if(error != 0) {
+		if(setpoint1_active) {
+			if(absl(error) < c_tol1) {
 				start_packet(MSG_ENCODER1_READY);
 				end_packet();
+				setpoint1_active = 0;
+				
+				positionL = clipl(a, b, positionL);
+				c_setpoint1 = positionL;
+				motor_left_set_power(0);
+				error_accum1 = 0;
+			} else {
+				error_accum1 = clipl2(MOTOR_MAX_POWER, error_accum1);
+				motor_left_set_power(error_accum1);
 			}
-			
-			positionL = clipl(a, b, positionL);
-			c_setpoint1 = positionL;
-			motor_left_set_power(0);
-			error_accum1 = 0;
 		} else {
-			error_accum1 = clipl(-3200, 3200, error_accum1);
-			motor_left_set_power(error_accum1);
+			error_accum1 = 0;
 		}
-		
 		// encoder2
 		a = minl(c_encoder2_max, 0);
 		b = maxl(c_encoder2_max, 0);
-		c_setpoint2 = clipl(a,b, c_setpoint2);
+		c_setpoint2 = clipl(a, b, c_setpoint2);
 		
 		
 		static long error_accum2 = 0;
 		
 		
 		error = ((long)c_setpoint2 - positionR) * c_pid_lin2;
-		target_speed = clipl(-c_speed2, c_speed2, -error);
+		target_speed = clipl2(c_speed2, -error);
 		error_accum2 += (target_speed - (-vR)) * c_pid_i2;
 		
-		if(absl(error) < c_tol2) {
-			
-			if(error != 0) {
+		if(setpoint2_active) {
+			if(absl(error) < c_tol2) {
+				
 				start_packet(MSG_ENCODER2_READY);
 				end_packet();
+
+				setpoint2_active = 0;
+				positionR = clipl(a, b, positionR);
+				c_setpoint2 = positionR;
+				motor_right_set_power(0);
+				error_accum2 = 0;
+			} else if(error != 0) {
+				error_accum2 = clipl2(MOTOR_MAX_POWER, error_accum2);
+				motor_right_set_power(error_accum2);
 			}
-			
-			positionR = clipl(a, b, positionR);
-			c_setpoint2 = positionR;
-			motor_right_set_power(0);
+		} else {
 			error_accum2 = 0;
-		} else if(error != 0) {
-			error_accum2 = clipl(-3200, 3200, error_accum2);
-			motor_right_set_power(error_accum2);
 		}
 	}
 	
@@ -409,39 +412,47 @@ void INTERRUPT _T1Interrupt(void)
 	// ------ final PWM is result of superposition of 2 regulators --------
 	
 	if(c_linear_mode == 0 && c_motor_connected == 1) {
-		motor_left_set_power((regulator_distance - regulator_rotation) * (long)c_motor_flip_left);
-		motor_right_set_power((regulator_distance + regulator_rotation) * (long)c_motor_flip_right);
+		#ifdef SIM
+			motor_left_set_power((regulator_distance + regulator_rotation) * (long)c_motor_flip_left);
+			motor_right_set_power((regulator_distance - regulator_rotation) * (long)c_motor_flip_right);
+		#else
+			motor_left_set_power((regulator_distance - regulator_rotation) * (long)c_motor_flip_left);
+			motor_right_set_power((regulator_distance + regulator_rotation) * (long)c_motor_flip_right);
+		#endif
 	}
 	
 	// periodically send status
 	RUN_EACH_NTH_CYCLES(int16_t, c_send_status_interval, send_status_and_position());
 
 	
+	#ifndef SIM
 	if(c_debug_encoders) {
 		RUN_EACH_NTH_CYCLES(int, 50, {
+			
 			start_packet(MSG_DEBUG_ENCODER1);
 				put_long(positionL);
+				// 13
+				put_byte(PORTBbits.RB13);
+				put_word(get_left_motor_power());
 			end_packet();
-			// start_packet('E');
-				// put_long(c_setpoint1);
-			// end_packet();
+			
 			start_packet(MSG_DEBUG_ENCODER2);
 				put_long(positionR);
+				// 10
+				put_byte(PORTBbits.RB10);
+				put_word(get_right_motor_power());
 			end_packet();
-			// start_packet('e');
-				// put_long(c_setpoint2);
-			// end_packet();
+			
 		})
 	}
-	
+	#endif
 	
 	TIMER0_INTRET
 }
 
 
 
-void reset_driver(void)
-{
+void reset_driver(void) {
 	positionR = positionL = 0;
 	L = orientation = 0;
 	
@@ -512,6 +523,23 @@ void send_status_and_position(void)
 	end_packet();
 }
 
+void cmd_pwm_opto() {
+	#ifndef SIM
+	c_motor_connected = 0;
+	while(PORTBbits.RB13 != 1) {
+		motor_left_set_power(-1000);
+	}
+	motor_left_set_power(0);
+	c_motor_connected = 0;
+	c_linear_mode = 0;
+	positionL = 0;
+	c_setpoint1 = 0;
+	
+	start_packet('X');
+	end_packet();
+	#endif
+}
+
 void set_speed_accel(float v)
 {
 	c_vmax = v;
@@ -520,14 +548,12 @@ void set_speed_accel(float v)
 	
 	if(c_accel == 0) {
 		g_accel = c_vmax / ((350-500) * (v / VMAX) + 500);
-	} 
-	else {
+	} else {
 		g_accel = c_vmax / c_accel;
 	}
 	if(c_alpha == 0) {
 		g_alpha = 2 * g_accel;
-	} 
-	else {
+	} else {
 		g_alpha = c_vmax / c_alpha;
 	}
 }
@@ -772,7 +798,7 @@ void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction)
 	current_status = STATUS_MOVING;
 	while(t < t3) {
 
-		if(t == sys_time) continue;
+		wait_for_regulator();
 		
 		t = sys_time;
 			
@@ -954,31 +980,29 @@ char turn(int angle)
 	current_status = STATUS_ROTATING;
 	send_status_and_position();
 	while(t < t3) {
-		if(t != sys_time) // every 1ms
-		{
-			t = sys_time;
-			if(get_command() == ERROR)
-				return ERROR;
+		wait_for_regulator();
+		t = sys_time;
+		if(get_command() == ERROR) {
+			return ERROR;
+		}
 
-			
-			if(t <= t1)
-			{
-				w_ref += g_alpha;
-				angle_ref += sign * (w_ref - g_alpha / 2);
-				t_ref = angle_ref;
-			}
-			else if(t <= t2)
-			{
-				w_ref = c_omega;
-				angle_ref += sign * c_omega;
-				t_ref = angle_ref;
-			}
-			else if(t <= t3)
-			{
-				w_ref -= g_alpha;
-				angle_ref += sign * (w_ref + g_alpha / 2);
-				t_ref = angle_ref;
-			}
+		if(t <= t1)
+		{
+			w_ref += g_alpha;
+			angle_ref += sign * (w_ref - g_alpha / 2);
+			t_ref = angle_ref;
+		}
+		else if(t <= t2)
+		{
+			w_ref = c_omega;
+			angle_ref += sign * c_omega;
+			t_ref = angle_ref;
+		}
+		else if(t <= t3)
+		{
+			w_ref -= g_alpha;
+			angle_ref += sign * (w_ref + g_alpha / 2);
+			t_ref = angle_ref;
 		}
 	}
 	current_status = STATUS_IDLE;
@@ -991,12 +1015,12 @@ char turn(int angle)
 void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 {
 	float R, Fi_start, delta, arc_value;
-	long t, t0, t1, t2, t3;
-	long T1, T2, T3;
-	long Fi_total, Fi1;
+	uint32_t t, t0, t1, t2, t3;
+	int32_t T1, T2, T3;
+	int32_t Fi_total, Fi1;
 	float v0, dist_ref, angle_ref, w_ref = 0, v_ref = 0;
-	char sign;
-	int angle;
+	int8_t sign;
+	int16_t angle;
 
 	// TODO: if needs initializing
 	motor_init();
@@ -1021,12 +1045,12 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 
 	angle = deg_angle_range_fix(angle);
 	
-	if(turn(angle))
+	if(turn(angle) == ERROR) {
 		return;
+	}
 
 	v0 = c_vmax;
 
-	// Fi_total = (long)Fi * K1 / 360;
 	Fi_total = DEG_TO_INC_ANGLE(Fi);
 
 	T1 = T3 = c_omega / g_alpha;
@@ -1034,8 +1058,10 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	if(Fi1 > (sign * Fi_total / 2))
 	{
 		// triangle profile
-		Fi1 = sign  * Fi_total / 2;
+		Fi1 = Fi_total / 2;
 		T1 = T3 = sqrt(2 * Fi1 / g_alpha);
+		// float wut = sqrt(2 * Fi1 / g_alpha);
+		// printf("wut %f %f\n",wut, 2.0f * Fi1 / g_alpha);
 		T2 = 0;
 	}
 	else
@@ -1050,6 +1076,9 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 	t3 = t2 + T3;
 	angle_ref = t_ref;
 	dist_ref = d_ref;
+	
+	// printf("decided: %d %d %d %d\n", t0,t1,t2,t3); 
+	// printf("decided2: %d %d %d\n", T1,T2,T3); 
 
 	current_status = STATUS_MOVING;
 	while(t < t3) 
@@ -1069,8 +1098,10 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			v_ref += g_accel;
 			delta = sign * (w_ref - g_alpha / 2);
 			arc_value = sign * delta * R / wheel_distance;
+			
 			angle_ref += delta;
 			dist_ref += direction * arc_value;
+			
 			t_ref = angle_ref;
 			d_ref = dist_ref;
 		}
@@ -1080,8 +1111,10 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			v_ref = c_vmax;
 			delta = sign * c_omega;
 			arc_value = sign * delta * R / wheel_distance;
+			
 			angle_ref += delta;
 			dist_ref += direction * arc_value;
+			
 			t_ref = angle_ref;
 			d_ref = dist_ref;
 		}
@@ -1091,8 +1124,10 @@ void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
 			v_ref -= g_accel;
 			delta = sign * (w_ref + g_alpha / 2);
 			arc_value = sign * delta * R / wheel_distance;
+			
 			angle_ref += delta;
 			dist_ref += direction * arc_value;
+			
 			t_ref = angle_ref;
 			d_ref = dist_ref;
 		}
@@ -1448,6 +1483,18 @@ static void on_alpha_changed() {
 	}
 }
 
+static void on_setpoint1() {
+	if(c_linear_mode) {
+		setpoint1_active = 1;
+	}
+}
+
+static void on_setpoint2() {
+	if(c_linear_mode) {
+		setpoint2_active = 1;
+	}
+}
+
 void regulator_init(void) {
 	move_cmd_next.active = 0;
 	
@@ -1468,6 +1515,9 @@ void regulator_init(void) {
 	
 	config_on_change(CONF_ALPHA, on_alpha_changed);
 	config_on_change(CONF_ACCEL, on_accel_changed);
+	
+	config_on_change(CONF_SETPOINT1, on_setpoint1);
+	config_on_change(CONF_SETPOINT2, on_setpoint2);
 }
 
 

@@ -62,6 +62,7 @@ Packet* try_read_packet(void);
 uint8_t get_byte(void);
 uint16_t get_word(void);
 uint32_t get_long(void);
+uint32_t put_short(void);
 
 char packet_can_send_packet(void);
 void put_byte(int8_t b);

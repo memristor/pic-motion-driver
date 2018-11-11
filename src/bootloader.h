@@ -3,7 +3,7 @@
 
 void bootloader_start();
 
-
+#include <stdint.h>
 #ifndef SIM
 	#define BOOT __attribute__((section ("bootloader")))
 	void bootloader_write_sequence();

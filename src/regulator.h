@@ -107,13 +107,14 @@ void set_position(int X, int Y, int orientation);
 
 void send_status_and_position(void);
 void report_status(void);
+void on_status_changed(void);
 enum State get_status(void);
 void force_status(enum State);
 
 void smooth_stop(void);
 void soft_stop(void);
 
-
+void cmd_pwm_opto();
 
 #endif	/* REGULACIJA_H */
 

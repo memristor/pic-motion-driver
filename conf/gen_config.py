@@ -25,6 +25,11 @@ conf = {
 	'byte': imp_conf.conf_bytes
 }
 
+def simple_hash(v):
+	h=5381
+	for i in v:
+		h = h*33 + ord(i)
+	return int(h) & 0xffff
 
 def gen_mcu_code():
 	s = '// THIS FILE IS GENERATED WITH PYTHON SCRIPT "gen_config.py" and must only be included within "config.h"\n'
@@ -65,21 +70,42 @@ def gen_mcu_code():
 	
 	s += '\n\n'
 	
-	s += 'void config_set_b(int key, int8_t value);\n' + \
-		 'void config_set_i(int key, int value);\n' + \
-		 'void config_set_f(int key, float value);\n\n'
-	
 	s += 'static inline void config_load_defaults(void) {\n'
+	from collections import Counter, OrderedDict
+	hash_keys = OrderedDict()
+	hash_map=[]
+	hash_names=[]
+	
+	def hash_it(v):
+		v = v.lower()
+		h = simple_hash(v)
+		hash_keys[h] = v
+		hash_names.append(v)
+		hash_map.append(h)
+	
 	for kv in conf['byte'].items():
 		s += '\tconfig_set_b(' + prefix + kv[0].upper() + ', ' + str(int(kv[1]) & 0xff) + ');\n'
+		hash_it(kv[0])
 		
 	for kv in conf['int'].items():
 		s += '\tconfig_set_i(' + prefix + kv[0].upper() + ', ' + str(int(kv[1]) & 0xffff) + ');\n'
+		hash_it(kv[0])
 		
 	for kv in conf['float'].items():
 		s += '\tconfig_set_f(' + prefix + kv[0].upper() + ', ' + str(float(kv[1])) + 'f);\n'
+		hash_it(kv[0])
+	
+	s += '\tint16_t hash_map[] = ' + str(hash_map).replace('[','{').replace(']','}') + ';\n'
+	s += '\tconfig_load_hash_map(hash_map);\n'
 	s += '}\n'
 	
+		
+	if len(hash_map) != len(set(hash_map)):
+		cnt = Counter(hash_map)
+		dupl=[hash_names[i]+':'+str(j) for i,j in enumerate(hash_map) if cnt[j] >= 2]
+		s += '#error hash map has duplicates('+str(len(dupl))+'): '
+		s += ', '.join(dupl) + '\n'
+				
 	prefix = 'CMD_'
 	for kv in commands.items():
 		s += '#define ' + prefix + kv[0].upper() + ' \'' + kv[1][0] + '\'\n'

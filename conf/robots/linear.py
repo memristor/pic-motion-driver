@@ -5,17 +5,18 @@ conf_floats={
 		
 		'PID_d_p': 5.5,
 		'PID_d_d': 200,
+		'PID_d_i': 0.0,
 		'PID_r_p': 3,
 		'PID_r_d': 90,
-		'pid_r_i': 0.025,
-		'accum_speed': 0.9,
-		'accum_clip':10000,
+		'pid_r_i': 0,
+		'accum_speed': 0,
+		'accum_clip':1,
 		
 		'vmax': 0x32,
 		'omega': 0x32,
 		
-		'accel': 0x32,
-		'alpha': 0x32,
+		'accel': 0,
+		'alpha': 0,
 		'slowdown': 1.0,
 		'slowdown_angle': 1.1,
 		'angle_speedup': 20,

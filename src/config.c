@@ -4,9 +4,12 @@ int8_t config_bytes[CONFIG_MAX_BYTES];
 int16_t config_ints[CONFIG_MAX_INTS];
 float config_floats[CONFIG_MAX_FLOATS];
 
+
+
 #define MAX_EXPONENT_BITS 9
 
 static ConfigCallback config_callbacks[CONFIG_MAX];
+int16_t config_hash_map[CONFIG_MAX];
 
 void config_init(void) {
 	int i;
@@ -20,7 +23,7 @@ static uint32_t load_uint32_bigendian(uint8_t* s) {
 }
 
 void config_load(int length, uint8_t* stream) {
-	// key uint32 sign exponent = 7 + cmd
+	// key uint32 sign exponent = 7 (max)
 	while(length >= 7) {
 		int key = *stream++;
 		int32_t val = load_uint32_bigendian(stream);
@@ -29,6 +32,23 @@ void config_load(int length, uint8_t* stream) {
 		int exponent = *stream++;
 		config_set_as_fixed_point(key, sign ? -val : val, exponent);
 		length -= 7;
+	}
+}
+
+uint8_t config_get_key(int16_t hash) {
+	int i;
+	for(i=0; i < CONFIG_MAX; i++){
+		if (config_hash_map[i] == hash) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+void config_load_hash_map(int16_t* hash) {
+	int i;
+	for(i=0; i<CONFIG_MAX; i++){
+		config_hash_map[i] = hash[i];
 	}
 }
 

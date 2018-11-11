@@ -1,6 +1,8 @@
 commands = {
 	'set_config': 'c',
+	'set_config_hash':'h',
 	'get_config': 'C',
+	'get_config_hash':'H',
 	'move_to': 'N',
 	'send_status_and_position': 'P',
 	'unstuck': 'U',
@@ -8,7 +10,6 @@ commands = {
 	'send_position': 'p',
 	'set_speed': 'V',
 	'set_rotation_speed': 'r',
-	'move_forward': 'r',
 	'relative_rotate': 'T',
 	'absolute_rotate': 'A',
 	'turn_and_go': 'G',
@@ -18,10 +19,11 @@ commands = {
 	'soft_stop': 's',
 	'smooth_stop': 't',
 	'reset_driver': 'R',
-	'kill_regulator': 'H',
+	'kill_regulator': 'k',
 	'forward': 'D',
 	'set_position_and_orientation': 'I',
 	'break': 'i',
+	'linear_optocoupler': '-'
 	
 }
 

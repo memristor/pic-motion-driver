@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+void config_load_hash_map(int16_t* hash);
+void config_set_b(int key, int8_t value);
+void config_set_i(int key, int value);
+void config_set_f(int key, float value);
+
 // -----------[ config keys ]-------------------
 #include "config_keys.h"
 // ---------------------------------------------
@@ -17,8 +22,6 @@
 
 // diagnostics
 extern int8_t config_changed[CONFIG_MAX];
-
-
 extern int8_t config_bytes[CONFIG_MAX_BYTES];
 extern int16_t config_ints[CONFIG_MAX_INTS];
 extern float config_floats[CONFIG_MAX_FLOATS];
@@ -43,10 +46,8 @@ static inline float config_get_f(int key) {
 }
 
 void config_init(void);
+uint8_t config_get_key(int16_t hash);
 
-void config_set_b(int key, int8_t value);
-void config_set_i(int key, int value);
-void config_set_f(int key, float value);
 
 typedef void (*ConfigCallback)(void);
 void config_on_change(int key, ConfigCallback callback);

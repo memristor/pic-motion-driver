@@ -1,7 +1,7 @@
 TOOLCHAIN_PATH := /opt/microchip/xc16/v1.30/bin/
 TOOLCHAIN := $(TOOLCHAIN_PATH)xc16-
 
-.PHONY: sim, config
+.PHONY: sim config
 
 src := \
 	src/main.c \
@@ -20,7 +20,7 @@ src := \
 sim_src := \
 	src/regulator.c \
 	src/config.c \
-	src/main.sim.c \
+	src/main.c \
 	src/init.sim.c \
 	src/com/packet.c \
 	src/util/math.c \
@@ -33,6 +33,9 @@ sim_src := \
 obj := $(patsubst %.c,%.o,$(src))
 
 robot := big
+board := NEW
+
+mplab=v4.15
 
 ##########################################
 
@@ -52,7 +55,7 @@ $(app).elf: $(obj)
 
 
 %.o: %.c
-	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
+	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -DBOARD_$(board) -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
 
 config:
 	python3 conf/gen_config.py mcu $(robot) > src/config_keys.h
@@ -64,13 +67,23 @@ py:
 	python3 conf/gen_config.py py $(robot) > const_motion.py
 	
 sim: $(sim_src)
+	python3 conf/gen_config.py mcu sim > src/config_keys.h
 	gcc $^ -o sim -DSIM -lm -pthread
 
-upload:
-	mkdir -p tmp; cd tmp; sudo java -jar /opt/microchip/mplabx/v4.15/mplab_ipe/ipecmd.jar -TPPK3 -P33FJ128MC802 -M -F../AppImage.hex; sudo rm -rf tmp
+dev := vcan0
+
+sim_dev:
+	sudo modprobe vcan
+	sudo ip link add dev $(dev) type vcan
+	sudo ip link set up $(dev)
 	
+dev: sim_dev
+
+upload:
+	mkdir -p tmp; cd tmp; sudo java -jar /opt/microchip/mplabx/$(mplab)/mplab_ipe/ipecmd.jar -TPPK3 -P33FJ128MC802 -M -F../AppImage.hex; sudo rm -rf tmp
 	
 clean:
 	rm -f const_motion.py config_const.js src/config_keys.h
 	rm -f src/*.o src/drive/*.o src/com/*.o src/util/*.o
 	rm -f $(app).elf $(app).hex regions.txt
+	rm -rf sim tmp

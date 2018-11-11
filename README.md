@@ -12,6 +12,11 @@ Install xc16 MPLAB compiler, makefile is using binaries located by default at:
 ## PicKit3 (upload .hex program to chip)
 Use `mplab_ipe` located by default at: `/opt/microchip/mplabx/v3.50/mplab_ipe/mplab_ipe` when installed on Arch linux
 
+To upload hex with mplab version 4.15
+```
+make upload mplab=v4.15
+```
+
 ## Getting started
 ### Arch (yaourt)
 - Install required tools `sudo yaourt -S microchip-mplabx-bin microchip-mplabxc16-bin`
@@ -20,12 +25,33 @@ Use `mplab_ipe` located by default at: `/opt/microchip/mplabx/v3.50/mplab_ipe/mp
 
 
 ## Generating config
-make config robot=big\
-make py robot=big\
-make js robot=big\
+```
+make config robot=big
+make py robot=big
+make js robot=big
+```
+### To use config from file: conf/robots/big.py
+```
 make robot=big
+```
+### Old board version (with different pinout interface with H-Bridge)
+```
+make board=OLD
+```
 
-
+## Simulation Mode
+To compile in simulation mode:
+```
+make sim
+```
+To create virtual CAN device named can_big
+```
+make dev dev=can_big
+```
+To run simulation which uses device named can_big
+```
+./sim can_big
+```
 ## Robot Axis
-X is forward
-Y is 90 deg CCW from X (as natural)
+- X is forward
+- Y is 90 deg CCW from X (as natural)

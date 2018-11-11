@@ -7,7 +7,7 @@ static char uart_enabled=1;
 static char can_enabled=1;
 
 static char uart_is_used = 0;
-static char can_is_used = 1;
+static char can_is_used = 0;
 
 void packet_enable_uart(char tf) {
 	uart_enabled = tf;
@@ -57,7 +57,6 @@ Packet* try_read_packet(void) {
 		rx_pkt = p;
 	}
 	
-	
 	if(!p && can_enabled == 1) {
 		uint16_t* pkt = can_get_packet();
 		if(pkt) {
@@ -68,7 +67,6 @@ Packet* try_read_packet(void) {
 			
 			rx_pkt = p;
 			rx_pkt->cursor = 0;
-			
 			
 			// handle can extending
 			if(p->type == CMD_CAN_EXTEND || p->type == CMD_CAN_EXTEND_START) {
@@ -97,9 +95,7 @@ Packet* try_read_packet(void) {
 				} else {
 					rx_pkt = 0;
 				}
-				
 			}
-			
 		}
 	}
 	

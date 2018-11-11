@@ -16,6 +16,8 @@
 
 #include <fcntl.h>
 
+extern char* can_iface;
+
 /** Returns true on success, or false if there was an error */
 int SetSocketBlockingEnabled(int fd, int blocking)
 {
@@ -55,7 +57,7 @@ void can_init(int can_id, int use_eid) {
 	default_tx_id = can_id;
 	default_tx_eid = use_eid;
 	
-	const char *ifname = "vcan0";
+	const char *ifname = can_iface;
 
 	if((sock = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0) {
 		perror("Error while opening socket");

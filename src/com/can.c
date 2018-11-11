@@ -150,6 +150,7 @@ static void can_clk_init(void){
 	*/
 
 	set_bitrate(530);
+	// set_bitrate(125);
 }
 
 uint16_t* BOOT can_get_packet() {
