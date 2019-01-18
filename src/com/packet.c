@@ -7,7 +7,7 @@ static char uart_enabled=1;
 static char can_enabled=1;
 
 static char uart_is_used = 0;
-static char can_is_used = 0;
+static char can_is_used = 1;
 
 void packet_enable_uart(char tf) {
 	uart_enabled = tf;
@@ -206,20 +206,21 @@ void put_long(int32_t l) {
 void end_packet(void) {
 	
 	if(tx_writing_pkt != 0) {
-		tx_writing_pkt->cursor = 0;
+		struct Packet* pkt = tx_writing_pkt;
+		pkt->cursor = 0;
 		
 		if(uart_enabled == 1  && uart_is_used == 1) {
 		// if(uart_enabled) {
-			tx_writing_pkt->sync = PACKET_SYNC;
+			pkt->sync = PACKET_SYNC;
 			int i, crc=0;
-			for(i=0; i < tx_writing_pkt->size; i++) {
-				crc += tx_writing_pkt->data[i];
+			for(i=0; i < pkt->size; i++) {
+				crc += pkt->data[i];
 			}
-			tx_writing_pkt->crc = ((tx_writing_pkt->size + tx_writing_pkt->type) << 4) | (crc & 0xf);
+			pkt->crc = ((pkt->size + pkt->type) << 4) | (crc & 0xf);
 			interrupt_lock
-			tx_writing_pkt->status = ready_to_send;
-			tx_writing_pkt->cursor = 0;
-			uart_start_sending_packet(tx_writing_pkt);
+			pkt->status = ready_to_send;
+			pkt->cursor = 0;
+			uart_start_sending_packet(pkt);
 			interrupt_unlock
 		}
 		
@@ -230,23 +231,23 @@ void end_packet(void) {
 				uint8_t* d = (uint8_t*)&buf[3];
 				int i;
 				can_write_tx_default_id(buf);
-				uint8_t len = tx_writing_pkt->size+1;
+				uint8_t len = pkt->size+1;
 				if(len == 0) len = 1;
 				else if(len > 8) len = 8;
 				len = clip(1,8, len);
 				buf[2] = (buf[2] & 0xfff0) | (len & 0xf);
-				*d++ = tx_writing_pkt->type;
+				*d++ = pkt->type;
 				len = len-1;
 				for(i=0; i < len; i++) {
-					d[i] = tx_writing_pkt->data[i];
+					d[i] = pkt->data[i];
 				}
 				can_send_tx_buffer(buf);
 			}
 		}
 		
-		if(tx_writing_pkt->status == writing_packet) {
+		if(pkt->status == writing_packet) {
 			interrupt_lock
-			packet_free_packet(tx_writing_pkt);
+			packet_free_packet(pkt);
 			interrupt_unlock
 		}
 	}

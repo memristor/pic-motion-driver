@@ -4,8 +4,17 @@
 #include <libpic30.h>
 
 // #include "bootloader.h"
+#ifdef USE_FRCPLL
+
+#pragma config FWDTEN = OFF, FNOSC = FRCPLL
+#else
 #pragma config FWDTEN = OFF, \
-			   FNOSC = FRCPLL
+			   FNOSC = PRIPLL, IESO=ON, OSCIOFNC=OFF, FCKSM=CSDCMD, POSCMD=XT
+#endif
+			   // IESO = ON
+			   // FNOSC = PRIPLL,
+// _FOSCSEL(FNOSC_FRC);
+ // _FOSC(FCKSM_CSDCMD & OSCIOFNC_OFF  & POSCMD_XT);
 #endif
 
 #include "regulator.h"
@@ -15,6 +24,7 @@
 #include "drive/motor.h"
 
 #ifdef SIM
+#include <unistd.h>
 char* can_iface = "can0";
 int main(char argc, char* argv[]) {
 #else
@@ -22,8 +32,9 @@ int main(void) {
 #endif
 
 	int16_t tmpX, tmpY, tmp, tmpO;
-	char command, v, direction, tmpSU;
+	char command, v, direction;
 
+	
 	#ifdef SIM
 	if(argc > 1) {
 		can_iface = argv[1];
@@ -37,6 +48,9 @@ int main(void) {
 	end_packet();
 	while(1)
 	{
+		#ifdef SIM
+		usleep(1000);
+		#endif
 		Packet* pkt = pkt=try_read_packet();
 		if(!pkt) continue;
 		#ifdef SIM
@@ -46,7 +60,6 @@ int main(void) {
 		reset_stuck();
 		switch(command)
 		{
-			// set position and orientation
 			case CMD_SET_POSITION_AND_ORIENTATION:
 				// x [mm], y [mm], orientation
 				tmpX = get_word();
@@ -99,13 +112,13 @@ int main(void) {
 				end_packet();
 				break;
 			}
-				// read status and position
 			case CMD_SEND_STATUS_AND_POSITION:
+				// read status and position
 				send_status_and_position();
 				break;
 
-				// set speed; Vmax(0-255)
 			case CMD_SET_SPEED:
+				// set speed; Vmax(0-255)
 				set_speed(get_byte());
 				break;
 
@@ -116,33 +129,37 @@ int main(void) {
 				break;
 			}
 				
-				// move forward [mm]
 			case CMD_FORWARD:
+				// move forward [mm]
 				tmp = get_word();
-				v = get_byte();
-				forward(tmp, v);
-				break;
-
-				// relative angle [degrees]
-			case CMD_RELATIVE_ROTATE:
-				tmp = get_word();
-				turn(tmp);
+				forward(tmp);
 				break;
 				
-				// absolute angle [degrees]
+			case CMD_FORWARD_LAZY:
+				tmp = get_word();
+				v = get_byte();
+				forward_lazy(tmp, v);
+				break;
+
+				
 			case CMD_ABSOLUTE_ROTATE:
+				// absolute angle [degrees]
 				tmp = get_word();
 				rotate_absolute_angle(tmp);
 				break;
 
-				// rotate to and then move to point (Xc, Yc, v, direction) [mm]
-			case CMD_TURN_AND_GO:
+			case CMD_RELATIVE_ROTATE:
+				// relative angle [degrees]
+				tmp = get_word();
+				turn(tmp);
+				break;
 				
+			case CMD_TURN_AND_GO:
+				// rotate to and then move to point (Xc, Yc, v, direction) [mm]
 				tmpX = get_word();
 				tmpY = get_word();
-				v = get_byte();
 				direction = get_byte(); // + means forward, - means backward
-				turn_and_go(tmpX, tmpY, v, direction); //(x, y, end_speed, direction)
+				turn_and_go(tmpX, tmpY, direction); //(x, y, end_speed, direction)
 				break;
 				     
 			case CMD_CURVE:
@@ -150,37 +167,45 @@ int main(void) {
 				tmpY = get_word();
 				tmpO = get_word();
 				tmp = get_byte();
-				tmpSU = (tmp & 1) ? 1 : 0;
-				direction = (tmp & 2) ? 1 : -1;
-				// void arc(long Xc, long Yc, int Fi, char direction_angle, char direction)
-				arc(tmpX, tmpY, tmpO, tmpSU, direction);
+				// void arc(long Xc, long Yc, int Fi, char direction)
+				arc(tmpX, tmpY, tmpO, tmp);
 				break;
-			
-				// x [mm], y [mm], direction {-1 - backwards, 0 - pick closest, 1 - forward}
-			case CMD_MOVE_TO: {
+				
+			case CMD_CURVE_RELATIVE:
+				tmpX = get_word();
+				tmpO = get_word();
+				// void arc_relative(int R, int Fi)
+				arc_relative(tmpX, tmpO);
+				break;
+				
+			case CMD_DIFF_DRIVE:
 				tmpX = get_word();
 				tmpY = get_word();
+				tmpO = get_word();
+				diff_drive( tmpX, tmpY, tmpO );
+				break;
+			
+			case CMD_MOVE_TO: {
+				// x [mm], y [mm], direction {-1 - backwards, 0 - pick closest, 1 - forward}
+				tmpX = get_word();
+				tmpY = get_word();
+				int radius = get_word();
 				int direction = get_byte();
-				int radius = 0x7fff;
-				if(pkt->size >= 6) {
-					radius = get_word();
-				}
 				
-				move_to(tmpX, tmpY, direction, radius);
+				move_to(tmpX, tmpY, radius, direction);
 				break;
 			}
-				// stop
 			case CMD_HARD_STOP:
 				stop();
 				break;
 
-				// stop and kill PWM
 			case CMD_SOFT_STOP:
+				// stop and kill PWM
 				soft_stop();
 				break;
 				
-				// reset position, status and speed
 			case CMD_RESET_DRIVER:
+				// reset position, status and speed
 				reset_driver();
 				break;
 			
@@ -211,6 +236,7 @@ int main(void) {
 				}
 				break;
 			*/
+			
 			case CMD_MOTOR: {
 				tmpX = get_word();
 				tmpY = get_word();
@@ -218,11 +244,20 @@ int main(void) {
 				break;
 			}
 			
+			case CMD_KEEP_SPEED: {
+				tmpX = (int16_t)get_word();
+				tmpY = (int16_t)get_word();
+				speed_const(tmpX, tmpY);
+				break;
+			}
+			
 			case CMD_MOTOR_INIT: {
 				motor_init();
+				break;
 			}
 			
 			/*
+			// debugging bootloader
 			case '.': {
 				uint32_t adr = get_long();
 				uint16_t len = get_word();

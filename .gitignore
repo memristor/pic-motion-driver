@@ -3,4 +3,9 @@
 *.hex
 const.py
 config_const.js
+const_motion.py
 src/config_keys.h
+sim
+*.xml*
+*.log*
+tmp

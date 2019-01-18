@@ -6,96 +6,69 @@
 #define SINUS_MAX 8192u
 #define SINUS_AMPLITUDE 0x7fff
 
-int deg_angle_range_fix(int angle);
-float rad_angle_range_fix(float angle);
-long inc_angle_range_fix(long angle);
+int deg_angle_range_normalize(int angle);
+float rad_angle_range_normalize(float angle);
+long angle_range_normalize_long(long angle, long max_angle_amplitude);
+float angle_range_normalize_float(float angle, float angle_period);
 
 #define in_range(val, a,b) ((val) >= (a) && (val) <= (b))
-
-#define min(a,b) ((a) < (b) ? (a) : (b))
-#define max(a,b) ((a) > (b) ? (a) : (b))
-
-static inline long minl(long a, long b) {
-	return a < b ? a : b;
-}
-static inline long maxl(long a, long b) {
-	return a > b ? a : b;
-}
-
-static inline float dval(char dir, float val) {
-	if(dir >= 0) {
-		return val;
-	} else {
-		return -val;
-	}
-}
-
-static inline float dfval(float dir, float val) {
-	if(dir >= 0) {
-		return val;
-	} else {
-		return -val;
-	}
-}
-
-static inline long absl(long a)
-{
-	return a >= 0 ? a : -a;
-}
-static inline float absf(float a)
-{
-	return a >= 0 ? a : -a;
-}
-
-static inline long clipl(long a, long b, long value) {
-	if(value <= a)
-		value = a;
-	else if(value > b)
-		value = b;
-	return value;
-}
-
-#define clipl2(amp, value) clipl(-amp,amp, value)
-
-static inline long long clipll(long long a, long long b, long long value) {
-	if(value <= a)
-		value = a;
-	else if(value > b)
-		value = b;
-	return value;
-}
-
-static inline int clip(int a, int b, int value) {
-	if(value <= a)
-		value = a;
-	else if(value > b)
-		value = b;
-	return value;
-}
-
 static inline int in_range_long(long val, long a, long b) {
 	return in_range(val, a,b);
 }
 
-static inline int sign(int x) {
-	return x >= 0L ? 1 : -1;
+static inline float dval(char dir, float val) {
+	return dir >= 0 ? val : -val;
 }
 
-static inline long signl(long x) {
-	return x >= 0L ? 1 : -1;
+static inline float dfval(float dir, float val) {
+	return dir >= 0 ? val : -val;
 }
 
-static inline char signf(float x) {
-	return x >= 0.0f ? 1 : -1;
-}
+#define proc_def(def, func) \
+	def(int, func) \
+	def(long, func ## l) \
+	def(long long, func ## ll) \
+	def(float, func ## f) \
+	def(double, func ## d)
 
-static inline float minf(float a, float b) {
-	return a < b ? a : b;
-}
+#define def_abs(type, f) \
+	static inline type f(type a) { \
+		return a >= 0 ? a : -a; \
+	}
 
-static inline float maxf(float a, float b) {
-	return a > b ? a : b;
-}
+proc_def(def_abs, abs)
+
+#define def_clip(type, f) \
+	static inline type f(type a, type b, type v) { \
+		if(v < a) v = a; \
+		else if(v > b) v = b; \
+		return v; \
+	} \
+	static inline type f ## 2(type amp, type v) { return f(-amp,amp,v); } \
+	static inline type f ## _margin(type center, type margin, type v) { return f(center-margin,center+margin,v); }
+	
+proc_def(def_clip, clip)
+
+
+#define def_sign(type, f) \
+	static inline type f(type x) { \
+		return x >= 0 ? 1 : -1; \
+	}
+
+proc_def(def_sign, sign)
+
+#define def_min(type, f) \
+	static inline type f(type a, type b) { \
+		return a < b ? a : b; \
+	}
+
+#define def_max(type, f) \
+	static inline type f(type a, type b) { \
+		return a > b ? a : b; \
+	}
+
+proc_def(def_min, min)
+proc_def(def_max, max)
 
 uint32_t uint32_log10(uint32_t v);
 

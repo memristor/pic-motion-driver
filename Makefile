@@ -53,9 +53,10 @@ flags := -Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-secti
 $(app).elf: $(obj)
 	$(TOOLCHAIN)gcc $^ -o $@ -T p33FJ128MC802.gld -mcpu=33FJ128MC802 -omf=elf $(flags) $(report_flags) -Wfatal-error
 
-
+clock=USE_CRYSTAL
+# clock=USE_FRCPLL
 %.o: %.c
-	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -DBOARD_$(board) -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
+	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -DBOARD_$(board) -D$(clock) -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
 
 config:
 	python3 conf/gen_config.py mcu $(robot) > src/config_keys.h
@@ -68,7 +69,7 @@ py:
 	
 sim: $(sim_src)
 	python3 conf/gen_config.py mcu sim > src/config_keys.h
-	gcc $^ -o sim -DSIM -lm -pthread
+	gcc $^ -g -o sim -DSIM -lm -pthread
 
 dev := vcan0
 

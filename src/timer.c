@@ -19,7 +19,11 @@ void timer_init(void)
 	T1CONbits.TCS = 0;
 
 	TMR1 = 0;
+	#ifdef USE_FRCPLL
 	PR1 = 29479; // 1ms interrupts
+	#else
+	PR1 = 32000; // 1ms interrupts
+	#endif
 
 	IPC0bits.T1IP = 2; // interrupt priority == 2
 	IFS0bits.T1IF = 0; // Clear Timer1 Interrupt Flag

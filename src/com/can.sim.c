@@ -126,7 +126,7 @@ uint16_t* can_get_packet() {
 		return 0;
 	}
 	if(frame.can_id != (default_tx_id | (default_tx_eid ? CAN_EFF_FLAG : 0))) {
-		printf("wrong can id: %x %x\n", (uint32_t)frame.can_id);
+		printf("wrong can id: %x\n", (uint32_t)frame.can_id);
 		return 0;
 	}
 	int8_t *msg = (int8_t*)&pkt[3];
@@ -148,6 +148,7 @@ void can_send_tx_buffer(uint16_t* pkt) {
 	frame.can_id = default_tx_id;
 	frame.can_id |= default_tx_eid ? CAN_EFF_FLAG : 0;
 	memcpy(frame.data, msg, 8);
+	// printf("sending: %c %c\n", frame.data[0], frame.data[1]);
 	int nbytes = write(sock, &frame, sizeof(struct can_frame));
 }
 

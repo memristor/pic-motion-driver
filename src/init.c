@@ -40,10 +40,30 @@ static void init_chip_clock(void) {
 	   Fosc= Fin*M/(N1*N2), Fcy=Fosc/2
 	   Fosc= 7.37*(32)/(2*2)=58.96Mhz for Fosc, Fcy = 29.48Mhz */
 
+	// OSCCONbits.CLKLOCK = 0;
+	
+	#ifdef USE_FRCPLL
 	// Configure PLL prescaler, PLL postscaler, PLL divisor
-	PLLFBDbits.PLLDIV = 30;   // M = PLLFBD + 2
+	// PLLFBDbits.PLLDIV = 30;   // M = PLLFBD + 2
+	PLLFBD = 30;
 	CLKDIVbits.PLLPOST=0;   // N1 = 2
 	CLKDIVbits.PLLPRE=0;    // N2 = 2
+	#else
+	
+	PLLFBD = 30;
+	CLKDIVbits.PLLPOST=0;   // N1 = 2
+	// CLKDIVbits.PLLPRE=0;    // N2 = 2
+	CLKDIVbits.PLLPRE=2;    // N2 = 4
+	
+	
+	// OSCCONbits.NOSC = FNOSC_PRIPLL;
+	__builtin_write_OSCCONH(0x03);
+	__builtin_write_OSCCONL(0x01);
+	while (OSCCONbits.COSC != 0b011);
+	#endif
+	// OSCCONbits.OSWEN = 1;
+	// while(OSCCONbits.OSWEN != 0);
+	// OSCCONbits.CLKLOCK = 1;
 	while(!OSCCONbits.LOCK); // wait for PLL to lock
 }
 

@@ -57,7 +57,11 @@ static void dma2init(void){
 }
 
 /* CAN Baud Rate Configuration 		*/
+#ifdef USE_FRCPLL
 #define CHIP_FREQUENCY 30000000
+#else
+#define CHIP_FREQUENCY 32000000
+#endif
 #define BITRATE 500000
 #define NTQ 	20		// 20 Time Quanta in a Bit Time
 #define BRP_VAL		((CHIP_FREQUENCY/(2*NTQ*BITRATE))-1)
@@ -85,34 +89,21 @@ static void set_bitrate(int val) {
 		/* Bus line is sampled three times at the sample point */
 		C1CFG2bits.SAM = 0x1;
 		
-	} else if(val == 540) { // 500Kbps on 40 Mhz clock with 20 TQ
-		/* Synchronization Jump Width set to 4 TQ */
-		C1CFG1bits.SJW = 0x3;
-		/* Baud Rate Prescaler */
-		C1CFG1bits.BRP = (40000000/(2*20*500000))-1;
-		// C1CFG1bits.BRP = -1; // very low baud for testing
-
-		/* Phase Segment 1 time is 8 TQ */
-		C1CFG2bits.SEG1PH=0x7;
-		/* Phase Segment 2 time is set to be programmable */
-		C1CFG2bits.SEG2PHTS = 0x1;
-		/* Phase Segment 2 time is 8 TQ */
-		C1CFG2bits.SEG2PH = 0x5;
-		/* Propagation Segment time is 8 TQ */
-		C1CFG2bits.PRSEG = 0x4;
-		/* Bus line is sampled three times at the sample point */
-		C1CFG2bits.SAM = 0x1;
-		
 	} else if(val == 530) { // 500Kbps on 30Mhz clock but less TQ
 		/* Synchronization Jump Width set to 4 TQ */
 		const long chip_clock = CHIP_FREQUENCY;
 		const long can_freq = 500000;
+		#ifdef USE_FRCPLL
 		const long TQ = 15;
+		#else
+		const long TQ = 16;
+		#endif
 		
 		// 4 TQ
 		C1CFG1bits.SJW = 0x3;
 		
 		/* Baud Rate Prescaler */
+		// C1CFG1bits.BRP = 2-1;//(chip_clock/(2*TQ*can_freq))-1;
 		C1CFG1bits.BRP = (chip_clock/(2*TQ*can_freq))-1;
 		
 		// C1CFG1bits.BRP = -1; // very low baud for testing
@@ -127,7 +118,11 @@ static void set_bitrate(int val) {
 		C1CFG2bits.SEG2PH = 0x2;
 		
 		/* Propagation Segment time is 8 TQ */
+		#ifdef USE_FRCPLL
 		C1CFG2bits.PRSEG = 0x3;
+		#else
+		C1CFG2bits.PRSEG = 0x4;
+		#endif
 		
 		/* Bus line is sampled three times at the sample point */
 		C1CFG2bits.SAM = 0x1;
@@ -150,6 +145,7 @@ static void can_clk_init(void){
 	*/
 
 	set_bitrate(530);
+	// set_bitrate(1252);
 	// set_bitrate(125);
 }
 
@@ -327,6 +323,8 @@ void can_init(int can_id, int use_eid) {
 	// Enter Config Mode
 	can_set_mode(can_config_mode);
 
+
+	C1CTRL1bits.CANCKS = 0;
 	// init CAN clock
 	can_clk_init();	
 

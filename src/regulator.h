@@ -43,15 +43,21 @@
 #define OK 1
 //
 
+#define REGULATOR_POSITION 0
+#define REGULATOR_LINEAR 1
+#define REGULATOR_SPEED 3
 
 // unit conversions
-#define MM_TO_DINC(x) 			(((long long)(x) << 1)*K2)
-#define MM_TO_INC(x) 			((long)(x)*K2)
-#define INC_TO_MM(x) 			((x) / K2)
-#define DINC_TO_MM(x) 	(((x) / 2) / K2)
+#define MM_TO_DINC(x) 					(((long long)(x) << 1)*K2)
+#define MM_TO_INC(x) 					((long)(x)*K2)
+#define INC_TO_MM(x) 					((x) / K2)
+#define DINC_TO_MM(x) 					(((x) / 2) / K2)
+
 #define DEG_TO_INC_ANGLE(x) 			((long)(x)*K1/360)
+#define DEG_TO_RAD_ANGLE(x) 			((float)(x)*3.141592f/180.0f)
 #define INC_TO_DEG_ANGLE(x) 			((x)*360/K1)
-#define RAD_TO_INC_ANGLE(x) 			((x)/(2.0*PI)*K1)
+#define INC_TO_RAD_ANGLE(x) 			((float)(x)*6.283184f/(float)K1)
+#define RAD_TO_INC_ANGLE(x) 			((x)*K1/(2.0*PI))
 #define RAD_TO_DEG_ANGLE(x) 			((x)*180.0/PI)
 
 #define RUN_EACH_NTH_CYCLES(counter_type, nth, run) { static counter_type _cycle_ = 0; if(nth > 0 && ++_cycle_ >= nth) { _cycle_ = 0; run; } }
@@ -66,13 +72,20 @@
 // --- regulator PD (proportional, differential) components, trial & error ---
 // depends on timer interrupt period
 
-#ifndef SIM
-	#define INTERRUPT __attribute__((interrupt(auto_psv)))
-	#define TIMER0_INTRET IFS0bits.T1IF = 0;
-#else
+#ifdef SIM
+	#include <unistd.h>
+	#include <stdio.h>
+	typedef double ldouble;
+	#define dbg(...) printf(__VA_ARGS__)
+	
 	#define INTERRUPT
 	#define TIMER0_INTRET
 	#define __delay_ms(x) usleep(x*1000)
+#else
+	#define INTERRUPT __attribute__((interrupt(auto_psv)))
+	#define TIMER0_INTRET IFS0bits.T1IF = 0;
+	typedef long double ldouble;
+	#define dbg(...)
 #endif
 
 // ----------------------------------------------------------------------------
@@ -91,20 +104,22 @@ void reset_driver(void);
 void reset_stuck(void);
 
 // standard commands
-void turn_and_go(int Xd, int Yd, unsigned char end_speed, char direction);
-void forward(int length, unsigned char end_speed);
+void turn_and_go(int Xd, int Yd, char direction);
+void forward(int length);
+void forward_lazy(int length, uint8_t speed);
 void rotate_absolute_angle(int angle);
 char turn(int angle);
-void arc(long Xc, long Yc, int Fi, char direction_angle, char direction);
-void move_to(long x, long y, char direction, int radius);
+void arc(long Xc, long Yc, int Fi, char direction);
+void arc_relative(int R, int Fi);
+void move_to(long x, long y, int radius, char direction);
 void stop(void);
 void motor_const(int a, int b);
-
+void speed_const(int a, int b);
 void set_speed_accel(float v);
 void set_speed(unsigned char tmp);
 void set_rotation_speed(unsigned char max_speed, unsigned char max_accel);
 void set_position(int X, int Y, int orientation);
-
+void diff_drive(int x,int y, int fi);
 void send_status_and_position(void);
 void report_status(void);
 void on_status_changed(void);

@@ -11,6 +11,8 @@ if len(sys.argv) >= 3:
 else:
 	config_for_robot = 'big'
 
+import robots.default as defs
+
 try:
 	imp_conf = importlib.import_module('robots.'+config_for_robot)
 except:
@@ -19,11 +21,24 @@ except:
 
 from general import *
 
+defs.conf_floats.update(imp_conf.conf_floats)
+defs.conf_integers.update(imp_conf.conf_integers)
+defs.conf_bytes.update(imp_conf.conf_bytes)
+
+
 conf = {
-	'float': imp_conf.conf_floats,
-	'int': imp_conf.conf_integers,
-	'byte': imp_conf.conf_bytes
+	'float': defs.conf_floats,
+	'int': defs.conf_integers,
+	'byte': defs.conf_bytes
 }
+
+try:
+	import subprocess
+	verstr = subprocess.check_output(['git', 'rev-parse', 'HEAD'])
+	verstr = verstr[:4]
+	conf['int']['version'] = int(verstr, 16)
+except:
+	pass
 
 def simple_hash(v):
 	h=5381

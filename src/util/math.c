@@ -5,7 +5,7 @@
 
 const int sinus[SINUS_MAX];
 
-int deg_angle_range_fix(int angle) {
+int deg_angle_range_normalize(int angle) {
 	while(angle > 180) {
 		angle -= 360;
 	}
@@ -15,12 +15,41 @@ int deg_angle_range_fix(int angle) {
 	return angle;
 }
 
-float rad_angle_range_fix(float angle) {
+float rad_angle_range_normalize(float angle) {
 	while(angle > PI) {
 		angle -= 2*PI;
 	}
 	while(angle < -PI) {
 		angle += 2*PI;
+	}
+	return angle;
+}
+
+long angle_range_normalize_long(long angle, long angle_period) {
+	if (angle > angle_period || angle < -angle_period) {
+		angle = angle % angle_period;
+	}
+	
+	// angle ~ [-angle_period/2, angle_period/2]
+	long half = angle_period/2;
+	if(angle > half) {
+		angle -= angle_period;
+	} else if(angle < -half) {
+		angle += angle_period;
+	}
+	return angle;
+}
+float angle_range_normalize_float(float angle, float angle_period) {
+	if (angle > angle_period || angle < -angle_period) {
+		angle = fmod(angle, angle_period);
+	}
+	
+	// angle ~ [-angle_period/2, angle_period/2]
+	float half = angle_period/2;
+	if(angle > half) {
+		angle -= angle_period;
+	} else if(angle < -half) {
+		angle += angle_period;
 	}
 	return angle;
 }
@@ -33,26 +62,28 @@ uint32_t uint32_log10(uint32_t v) {
 }
 
 void sin_cos(long theta, long *sint, long *cost) {
-	if(theta < SINUS_MAX) // 1st quadrant
-	{
+	while(theta < 0) {
+		theta += 4*SINUS_MAX;
+	}
+	while(theta > 4*SINUS_MAX) {
+		theta -= 4*SINUS_MAX;
+	}
+	
+	if(theta < SINUS_MAX) {// 1st quadrant
 		theta = theta;
 		*sint = sinus[theta];
 		*cost = sinus[SINUS_MAX-1 - theta];
 	} else {
-		if(theta < 2*SINUS_MAX) // 2nd quadrant
-		{
+		if(theta < 2*SINUS_MAX) {// 2nd quadrant
 			theta = theta - SINUS_MAX;
 			*sint = sinus[SINUS_MAX-1 - theta];
 			*cost = -sinus[theta];
 		} else {
-			if(theta < 3*SINUS_MAX) // 3rd quadrant
-			{
+			if(theta < 3*SINUS_MAX) {// 3rd quadrant
 				theta = theta - 2*SINUS_MAX;
 				*sint = -sinus[theta];
 				*cost = -sinus[SINUS_MAX-1 - theta];
-			}
-			else // 4th quadrant
-			{
+			} else {// 4th quadrant
 				theta = theta - 3*SINUS_MAX;
 				*sint = -sinus[SINUS_MAX-1 - theta];
 				*cost = sinus[theta];
