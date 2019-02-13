@@ -30,10 +30,12 @@ make config robot=big
 make py robot=big
 make js robot=big
 ```
+
 ### To use config from file: conf/robots/big.py
 ```
 make robot=big
 ```
+
 ### Old board version (with different pinout interface with H-Bridge)
 ```
 make board=OLD
@@ -55,3 +57,10 @@ To run simulation which uses device named can_big
 ## Robot Axis
 - X is forward
 - Y is 90 deg CCW from X (as natural)
+
+
+# Boards
+
+- make board=V1_OLD - dsPIC33FJ128M802 with older pcb design
+- make board=V1_NEW - dsPIC33FJ128M802 with newer pcb design
+- make board=V2 - new PIC32MK1024MCF064 board

@@ -1,5 +1,4 @@
-#include <p33FJ128MC802.h>
-#include <libpic30.h>
+#include "config.h"
 #include <stdint.h>
 #include "bootloader.h"
 #include "com/packet.h"

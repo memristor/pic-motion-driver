@@ -20,3 +20,6 @@ int encoder_left_get_count(void) {
 int encoder_right_get_count(void) {
 	return right_motor_pwm * 1;
 }
+
+int motor_encoder_left_get_count(void){return 0;}
+int motor_encoder_right_get_count(void){return 0;}

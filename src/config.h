@@ -52,6 +52,35 @@ uint8_t config_get_key(int16_t hash);
 typedef void (*ConfigCallback)(void);
 void config_on_change(int key, ConfigCallback callback);
 
+#ifndef SIM
 
+	#ifdef BOARD_V2
+		#define FCY 29491200ULL
+		#include <xc.h>
+		#define interrupt_lock
+		#define interrupt_unlock
+		#define INTERRUPT
+		#define DMA_SPACE
+		#define __delay_ms(t)
+		#define REGULATOR_INTERRUPT void INTERRUPT _T1Interrupt(void)
+	#else
+		#define FCY 29491200ULL
+		#include <p33FJ128MC802.h>
+		#include <libpic30.h>
+		#define interrupt_lock SRbits.IPL = 7;
+		#define interrupt_unlock SRbits.IPL = 0;
+		// #define INTERRUPT __attribute__((interrupt(auto_psv)))
+		#define INTERRUPT __attribute__((interrupt(auto_psv)))
+		#define DMA_SPACE __attribute__((space(dma)))
+		#define REGULATOR_INTERRUPT void INTERRUPT _T1Interrupt(void)
+	#endif
+
+
+#else
+	#define interrupt_lock
+	#define interrupt_unlock
+	#define INTERRUPT
+	#define __delay_ms(t) usleep(t*1000)
+#endif
 
 #endif

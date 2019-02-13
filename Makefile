@@ -1,7 +1,14 @@
 TOOLCHAIN_PATH := /opt/microchip/xc16/v1.30/bin/
 TOOLCHAIN := $(TOOLCHAIN_PATH)xc16-
 
-.PHONY: sim config
+
+robot := big
+# board := V1_NEW
+board := V2
+mplab=v4.15
+dev := vcan0
+
+##########################################
 
 src := \
 	src/main.c \
@@ -17,6 +24,20 @@ src := \
 	src/init.c \
 	src/bootloader.c
 	
+src_v2 := \
+	src/main.c \
+	src/com/uart.v2.c \
+	src/com/can.v2.c \
+	src/com/packet.c \
+	src/drive/encoder.v2.c \
+	src/drive/motor.v2.c \
+	src/timer.c \
+	src/util/math.c \
+	src/regulator.c \
+	src/config.c \
+	src/init.v2.c
+# 	src/bootloader.c
+	
 sim_src := \
 	src/regulator.c \
 	src/config.c \
@@ -30,33 +51,48 @@ sim_src := \
 	src/com/uart.sim.c \
 	src/com/can.sim.c
 
-obj := $(patsubst %.c,%.o,$(src))
+.PHONY: sim config
 
-robot := big
-board := NEW
 
-mplab=v4.15
-
-##########################################
-
+obj = $(patsubst %.c,%.o,$(src))
 app := AppImage
+
+ifeq ($(board),V2)
+	TOOLCHAIN_PATH := /opt/microchip/xc32/v2.15/bin/
+	TOOLCHAIN := $(TOOLCHAIN_PATH)xc32-
+	chip=32MK1024MCF064
+	flags := -mips32 -mprocessor=$(chip)
+	flags2 := -mips32 -mprocessor=$(chip)
+	src := $(src_v2)
+else
+	chip=33FJ128MC802
+	report_flags := -Wa,-alh,-L -Wl,--report-mem 
+	flags := -T p33FJ128MC802.gld -mcpu=$(chip) -omf=elf\
+		-Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-sections,\
+		--data-init,--pack-data,--handles,--isr,--no-gc-sections,--fill-upper=0,\
+		--stackguard=16,--library-path="..",--no-force-link,--smart-io $(report_flags) -Wfatal-error
+	# 		--ROM,default,-e000-11ff
+	flags2 := -omf=elf -no-legacy-libc -msmart-io=1 -Wall  -mcpu=$(chip)
+endif
+
+
+clock=USE_CRYSTAL
+# clock=USE_FRCPLL
+# -msfr-warn=off
+
+############################
 
 $(app).hex: config AppImage.elf
 	$(TOOLCHAIN)bin2hex -a AppImage.elf
 	
-report_flags := -Wa,-alh,-L -Wl,--report-mem 
-flags := -Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-sections,\
-		--data-init,--pack-data,--handles,--isr,--no-gc-sections,--fill-upper=0,\
-		--stackguard=16,--library-path="..",--no-force-link,--smart-io
-# 		--ROM,default,-e000-11ff
-		
 $(app).elf: $(obj)
-	$(TOOLCHAIN)gcc $^ -o $@ -T p33FJ128MC802.gld -mcpu=33FJ128MC802 -omf=elf $(flags) $(report_flags) -Wfatal-error
-
-clock=USE_CRYSTAL
-# clock=USE_FRCPLL
+	$(TOOLCHAIN)gcc $^ -o $@  $(flags) 
+	
 %.o: %.c
-	$(TOOLCHAIN)gcc -mcpu=33FJ128MC802 $^ -c -DBOARD_$(board) -D$(clock) -o $@ -omf=elf -no-legacy-libc -msmart-io=1 -Wall -msfr-warn=off
+	$(TOOLCHAIN)gcc  $^ -c -DBOARD_$(board) -D$(clock) -o $@ $(flags2)
+
+
+############################
 
 config:
 	python3 conf/gen_config.py mcu $(robot) > src/config_keys.h
@@ -71,7 +107,6 @@ sim: $(sim_src)
 	python3 conf/gen_config.py mcu sim > src/config_keys.h
 	gcc $^ -g -o sim -DSIM -lm -pthread
 
-dev := vcan0
 
 sim_dev:
 	sudo modprobe vcan

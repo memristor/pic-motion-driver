@@ -3,7 +3,35 @@
 
 #define PI 3.1415926535897932384626433832795
 
-const int sinus[SINUS_MAX];
+#define def_abs(type, f) type f(type a) { return a >= 0 ? a : -a; }
+#define def_clip(type, f) \
+	type f(type a, type b, type v) { if(v < a) v = a; else if(v > b) v = b; return v; } \
+	type f ## 2(type amp, type v) { return f(-amp,amp,v); } \
+	type f ## _margin(type center, type margin, type v) { return f(center-margin,center+margin,v); }
+
+#define def_sign(type, f) type f(type x) { return x >= 0 ? 1 : -1; }
+#define def_min(type, f) type f(type a, type b) { if (a < b) return a; else return b; }
+#define def_max(type, f) type f(type a, type b) { if (a > b) return a; else return b; }
+
+proc_def(def_abs, abs);
+proc_def(def_clip, clip);
+proc_def(def_sign, sign);
+proc_def(def_min, min);
+proc_def(def_max, max);
+
+
+int in_range_long(long val, long a, long b) {
+	return in_range(val, a,b);
+}
+
+float dval(char dir, float val) {
+	return dir >= 0 ? val : -val;
+}
+
+float dfval(float dir, float val) {
+	return dir >= 0 ? val : -val;
+}
+
 
 int deg_angle_range_normalize(int angle) {
 	while(angle > 180) {
@@ -61,36 +89,6 @@ uint32_t uint32_log10(uint32_t v) {
         (v >= 1000u) ? 3 : (v >= 100u) ? 2 : (v >= 10u) ? 1u : 0u; 
 }
 
-void sin_cos(long theta, long *sint, long *cost) {
-	while(theta < 0) {
-		theta += 4*SINUS_MAX;
-	}
-	while(theta > 4*SINUS_MAX) {
-		theta -= 4*SINUS_MAX;
-	}
-	
-	if(theta < SINUS_MAX) {// 1st quadrant
-		theta = theta;
-		*sint = sinus[theta];
-		*cost = sinus[SINUS_MAX-1 - theta];
-	} else {
-		if(theta < 2*SINUS_MAX) {// 2nd quadrant
-			theta = theta - SINUS_MAX;
-			*sint = sinus[SINUS_MAX-1 - theta];
-			*cost = -sinus[theta];
-		} else {
-			if(theta < 3*SINUS_MAX) {// 3rd quadrant
-				theta = theta - 2*SINUS_MAX;
-				*sint = -sinus[theta];
-				*cost = -sinus[SINUS_MAX-1 - theta];
-			} else {// 4th quadrant
-				theta = theta - 3*SINUS_MAX;
-				*sint = -sinus[SINUS_MAX-1 - theta];
-				*cost = sinus[theta];
-			}
-		}
-	}
-}
 
 int deg_angle_diff(int a, int b) {
 	long d = a - b;
@@ -141,7 +139,7 @@ float max3f(float a, float b, float c) {
 
 
 
-const int sinus[SINUS_MAX] = { // 8192 vrednosti od 0 - 90 stepeni
+const int16_t sinus[SINUS_MAX] = { // 8192 values from 0 - 90 degrees
 0x0, 0x6, 0xc, 0x12, 0x19, 0x1f, 0x25, 0x2b, 0x32, 0x38, 0x3e, 0x45, 0x4b, 0x51, 0x57, 0x5e, 
 0x64, 0x6a, 0x71, 0x77, 0x7d, 0x83, 0x8a, 0x90, 0x96, 0x9d, 0xa3, 0xa9, 0xaf, 0xb6, 0xbc, 0xc2, 
 0xc9, 0xcf, 0xd5, 0xdb, 0xe2, 0xe8, 0xee, 0xf5, 0xfb, 0x101, 0x107, 0x10e, 0x114, 0x11a, 0x121, 0x127, 
@@ -655,3 +653,39 @@ const int sinus[SINUS_MAX] = { // 8192 vrednosti od 0 - 90 stepeni
 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 
 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7ffe, 0x7fff
 };
+
+
+void sin_cos(long theta, long *sint, long *cost) {
+	while(theta < 0) {
+		theta += 4*SINUS_MAX;
+	}
+	while(theta > 4*SINUS_MAX) {
+		theta -= 4*SINUS_MAX;
+	}
+	
+	if(theta < SINUS_MAX) { 
+		// 1st quadrant
+		theta = theta;
+		*sint = sinus[theta];
+		*cost = sinus[SINUS_MAX-1 - theta];
+	} else {
+		if(theta < 2*SINUS_MAX) {
+			// 2nd quadrant
+			theta = theta - SINUS_MAX;
+			*sint = sinus[SINUS_MAX-1 - theta];
+			*cost = -sinus[theta];
+		} else {
+			if(theta < 3*SINUS_MAX) {
+				// 3rd quadrant
+				theta = theta - 2*SINUS_MAX;
+				*sint = -sinus[theta];
+				*cost = -sinus[SINUS_MAX-1 - theta];
+			} else {
+				// 4th quadrant
+				theta = theta - 3*SINUS_MAX;
+				*sint = -sinus[SINUS_MAX-1 - theta];
+				*cost = sinus[theta];
+			}
+		}
+	}
+}

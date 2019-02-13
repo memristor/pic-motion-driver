@@ -1,9 +1,3 @@
-#ifndef SIM
-	#define FCY 29491200ULL
-	#include <p33FJ128MC802.h>
-	#include <libpic30.h>
-#endif
-
 #include "config.h"
 #include "regulator.h"
 #include "drive/motor.h"
@@ -76,7 +70,8 @@ float get_distance_to(long x, long y) {
 // enters periodically every 1ms, and can last 30000 cpu cycles max (but recommended to last at most half of that, 15000 cycles)
 // *********************************************************************
 
-void INTERRUPT _INT1Interrupt(void) {
+// void INTERRUPT _INT1Interrupt(void) {
+	/*
 	#ifndef SIM
 	IFS1bits.INT1IF = 0;
 	// RUN_EACH_NTH_CYCLES(uint16_t, 200, {
@@ -85,12 +80,13 @@ void INTERRUPT _INT1Interrupt(void) {
 		end_packet();
 	// })
 	#endif
-}
+	*/
+// }
 
-void INTERRUPT _INT2Interrupt(void) {
+// void INTERRUPT _INT2Interrupt(void) {
 	// start_packet('x');
 	// end_packet();
-	
+	/*
 	#ifndef SIM
 	IFS1bits.INT2IF = 0;
 	// RUN_EACH_NTH_CYCLES(uint16_t, 200, {
@@ -99,7 +95,8 @@ void INTERRUPT _INT2Interrupt(void) {
 		end_packet();
 	// })
 	#endif
-}
+	*/
+// }
 
 struct regulator_t {
 	int last_dist;

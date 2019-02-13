@@ -1,24 +1,6 @@
-#ifndef SIM
-#define FCY 29491200ULL
-#include <p33FJ128MC802.h>
-#include <libpic30.h>
-
-// #include "bootloader.h"
-#ifdef USE_FRCPLL
-
-#pragma config FWDTEN = OFF, FNOSC = FRCPLL
-#else
-#pragma config FWDTEN = OFF, \
-			   FNOSC = PRIPLL, IESO=ON, OSCIOFNC=OFF, FCKSM=CSDCMD, POSCMD=XT
-#endif
-			   // IESO = ON
-			   // FNOSC = PRIPLL,
-// _FOSCSEL(FNOSC_FRC);
- // _FOSC(FCKSM_CSDCMD & OSCIOFNC_OFF  & POSCMD_XT);
-#endif
-
-#include "regulator.h"
 #include "config.h"
+#include "chip_config.h"
+#include "regulator.h"
 #include "init.h"
 #include "com/packet.h"
 #include "drive/motor.h"

@@ -2,7 +2,7 @@
 #include "motor.h"
 #include "../util/math.h"
 
-#ifdef BOARD_V1_OLD
+#ifdef BOARD_OLD
 	// old board
 	#define LEFT_INH  LATBbits.LATB15
 	#define RIGHT_INH LATBbits.LATB9
@@ -14,7 +14,7 @@
 	#define LEFT_IN2 LATBbits.LATB8
 #endif
 
-#ifdef BOARD_V1_NEW
+#ifdef BOARD_NEW
 	// new board
 	#define LEFT_INH  LATBbits.LATB12
 	#define RIGHT_INH LATBbits.LATB11
@@ -24,6 +24,18 @@
 		
 	#define LEFT_IN1 LATBbits.LATB9
 	#define LEFT_IN2 LATBbits.LATB8
+#endif
+
+#ifdef BOARD_V2
+	// new board
+	#define LEFT_INH
+	#define RIGHT_INH 
+
+	#define RIGHT_IN1 
+	#define RIGHT_IN2 
+		
+	#define LEFT_IN1 
+	#define LEFT_IN2 
 #endif
 
 #define LEFT_PIN_SW LEFT_IN1 
@@ -38,7 +50,7 @@ void motor_init(void) {
 	if(motor_active) return;
 	motor_turn_off();
 	motor_active = 1;
-
+	/*
 	// init PWM1
 	P1TCONbits.PTEN = 0;
 	PWM1CON1bits.PMOD1 = 1;
@@ -64,7 +76,7 @@ void motor_init(void) {
 	// turn on bridges
 	LEFT_INH = 1;
 	RIGHT_INH = 1;
-	
+	*/
 	config_on_change(CONF_MOTOR_SPEED_LIMIT, on_motor_speed_limit_change);
 }
 
@@ -76,6 +88,7 @@ void motor_turn_off(void) {
 	left_motor_pwm = 0;
 	right_motor_pwm = 0;
 	
+	/*
 	// clear the Interrupt enables
 	IEC3bits.PWM1IE = 0;
 	IEC3bits.FLTA1IE = 0;
@@ -94,11 +107,13 @@ void motor_turn_off(void) {
 	// turn off bridges
 	LEFT_INH = 0;
 	RIGHT_INH = 0;
+	*/
 }
 
 static inline void motor_left_pwm(int pwm) {
 	// apply left pwm
 	pwm = -pwm;
+	/*
 	if(pwm >= 0) {
 		LEFT_PIN_SW = 0;
 	} else {
@@ -106,10 +121,12 @@ static inline void motor_left_pwm(int pwm) {
 		pwm += MOTOR_MAX_SPEED;
 	}
 	P2DC1 = pwm;
+	*/
 }
 
 static inline void motor_right_pwm(int pwm) {
 	pwm = -pwm;
+	/*
 	if(pwm >= 0) {
 		RIGHT_PIN_SW = 0;
 	} else {
@@ -117,6 +134,7 @@ static inline void motor_right_pwm(int pwm) {
 		pwm += MOTOR_MAX_SPEED;
 	}
 	P1DC1 = pwm;
+	*/
 }
 
 // hadrware independent

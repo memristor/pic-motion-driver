@@ -1,18 +1,10 @@
 #include "uart.h"
 
-// #define DISI(n) do { asm volatile ("disi #%0" : : "i"(n)); } while (0)
-
 static volatile uint8_t rx_buf[RX_BUF_LEN];
 static volatile uint8_t rx_index1 = 0; // new data is put at this offset
 static volatile uint8_t rx_index2 = 0; // data is read from this offset
 static volatile uint8_t rxData;
 static volatile uint8_t rxCounter = 0;
-
-
-
-// ------------[ UART synchronous write ]---------------
-
-
 
 void uart_putstr(const char* s) {
 	while(*s) {
@@ -79,27 +71,6 @@ void uart_flush(void) {
 	interrupt_unlock
 }
 
-// __attribute__((__interrupt__, no_auto_psv))
-void INTERRUPT _U1RXInterrupt(void)
-{
-	static unsigned char status;
-	
-	status = U1STAbits.FERR | U1STAbits.PERR | U1STAbits.OERR;
-	rxData = U1RXREG;
-
-	if(status == 0)
-	{
-		if(++rx_index1 == RX_BUF_LEN) {
-			rx_index1 = 0;
-		}
-		rx_buf[rx_index1] = rxData;
-		rxCounter++;
-	}
-
-	U1STAbits.OERR = 0;
-	
-	IFS0bits.U1RXIF = 0;
-}
 
 // ------------[ RX PACKET ]--------------
 
@@ -198,8 +169,66 @@ Packet* uart_try_read_packet(void) {
 
 // HW dependend implementation
 
+void uart_start_sending_packet(Packet* p) {
+	/*
+	static Packet* volatile tx_pkt_sending = 0;
+	if((p == 0) || (tx_pkt_sending != 0)) return;
+	tx_pkt_sending = p;
+	tx_pkt_sending->status = sending;
+	tx_pkt_sending->cursor = 0;
+	// send byte by byte
+	if(U1STAbits.UTXBF == 0) {
+		U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor];
+		tx_pkt_sending->cursor++;
+	}
+	*/
+}
 
-void uart_init(long baud) {
+
+void _U1RXInterrupt(void) {
+	/*
+	static unsigned char status;
+	
+	status = U1STAbits.FERR | U1STAbits.PERR | U1STAbits.OERR;
+	rxData = U1RXREG;
+
+	if(status == 0)
+	{
+		if(++rx_index1 == RX_BUF_LEN) {
+			rx_index1 = 0;
+		}
+		rx_buf[rx_index1] = rxData;
+		rxCounter++;
+	}
+
+	U1STAbits.OERR = 0;
+	
+	IFS0bits.U1RXIF = 0;
+	*/
+}
+
+
+void _U1TXInterrupt(void)
+{
+	/*
+	IFS0bits.U1TXIF = 0;
+	if(tx_pkt_sending != 0) {
+		if(U1STAbits.UTXBF == 0) {
+			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor];
+			tx_pkt_sending->cursor++;
+		}
+		if(tx_pkt_sending->cursor >= tx_pkt_sending->size + PACKET_HEADER) {
+			packet_free_packet(tx_pkt_sending);
+			tx_pkt_sending = 0;
+			uart_start_sending_packet(packet_sending_queue_pop());
+		}
+	}
+	*/
+}
+
+void uart_init(long baud)
+{
+	/*
 	U1BRG = (double)FCY / (16 * baud) - 1;
 	U1MODEbits.STSEL = 0;   // 1 Stop bit
 	U1MODEbits.PDSEL = 0;   // No Parity, 8 data bits
@@ -218,10 +247,13 @@ void uart_init(long baud) {
 	rx_index1 = rx_index2 = rxCounter = 0;
 
 	U1MODEbits.UARTEN = 1;  // Enable UART
-	U1STAbits.UTXEN = 1;	
+	U1STAbits.UTXEN = 1;
+	*/
 }
 
+
 void uart_close(void) {
+	/*
 	U1MODEbits.UARTEN = 0;
 
 	IEC0bits.U1RXIE = 0;
@@ -229,49 +261,33 @@ void uart_close(void) {
 
 	IFS0bits.U1RXIF = 0;
 	IFS0bits.U1TXIF = 0;
+	*/
 }
 
-void uart_start_sending_packet(Packet* p) {
-	static Packet* volatile tx_pkt_sending = 0;
-	if((p == 0) || (tx_pkt_sending != 0)) return;
-	tx_pkt_sending = p;
-	tx_pkt_sending->status = sending;
-	tx_pkt_sending->cursor = 0;
-	if(U1STAbits.UTXBF == 0) {
-		U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor];
-		tx_pkt_sending->cursor++;
-	}
-}
-
-void __attribute__((__interrupt__,no_auto_psv)) _U1TXInterrupt(void)
-{
-	IFS0bits.U1TXIF = 0;
-	if(tx_pkt_sending != 0) {
-		if(U1STAbits.UTXBF == 0) {
-			U1TXREG = ((uint8_t*)tx_pkt_sending)[tx_pkt_sending->cursor];
-			tx_pkt_sending->cursor++;
-		}
-		if(tx_pkt_sending->cursor >= tx_pkt_sending->size + PACKET_HEADER) {
-			packet_free_packet(tx_pkt_sending);
-			tx_pkt_sending = 0;
-			uart_start_sending_packet(packet_sending_queue_pop());
-		}
-	}
-}
+// ------------[ UART synchronous write ]---------------
 
 void uart_putch(unsigned char c) {
+	/*
 	while(U1STAbits.UTXBF);
 	U1TXREG = c;
+	*/
 }
 
 void uart_putint16(unsigned int s) {
+	/*
 	while(U1STAbits.UTXBF);
+	
 	U1TXREG = s >> 8;
+	
 	while(U1STAbits.UTXBF);
+	
 	U1TXREG = s;
+	*/
 }
 
 void uart_init_pins(void) {
+	/*
 	RPINR18bits.U1RXR = 0;		//UART1 RX -> RP0- pin 4
 	RPOR0bits.RP1R = 3;			//UART1 TX -> RP1- pin 5
+	*/
 }

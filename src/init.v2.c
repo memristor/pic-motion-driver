@@ -8,6 +8,7 @@
 #include "regulator.h"
 
 static void port_init(void) {
+	/*
 	AD1PCFGL = 0xFFFF;// all PORT Digital
 	
 	TRISAbits.TRISA4=0;
@@ -30,6 +31,7 @@ static void port_init(void) {
 	// LATBbits.LATB13 = 0;
 	LATBbits.LATB14 = 0;
 	LATBbits.LATB15 = 0;
+	*/
 }
 
 static void init_chip_clock(void) {
@@ -39,6 +41,7 @@ static void init_chip_clock(void) {
 
 	// OSCCONbits.CLKLOCK = 0;
 	
+	/*
 	#ifdef USE_FRCPLL
 	// Configure PLL prescaler, PLL postscaler, PLL divisor
 	// PLLFBDbits.PLLDIV = 30;   // M = PLLFBD + 2
@@ -62,20 +65,26 @@ static void init_chip_clock(void) {
 	// while(OSCCONbits.OSWEN != 0);
 	// OSCCONbits.CLKLOCK = 1;
 	while(!OSCCONbits.LOCK); // wait for PLL to lock
+	*/
 }
 
 
 void external_interrupt_init_pins() {
+	/*
 	RPINR1bits.INT2R = 10;
 	RPINR0bits.INT1R = 13;
+	*/
 }
 
 void external_interrupt_init() {
+	/*
 	_INT1IE = 1;
 	_INT2IE = 1;
+	*/
 }
 
 static void init_pins(void) {
+	/*
 	__builtin_write_OSCCONL(OSCCON & 0xDF);
 	
 	can_init_pins();
@@ -84,10 +93,11 @@ static void init_pins(void) {
 	external_interrupt_init_pins();
 
 	__builtin_write_OSCCONL(OSCCON | (1<<6));
+	*/
 }
 
 void initialize(void) {
-	
+	/*
 	init_chip_clock();
 	init_pins();
 	external_interrupt_init();
@@ -117,4 +127,5 @@ void initialize(void) {
 	
 	motor_init();
 	set_speed(0x32);
+	*/
 }

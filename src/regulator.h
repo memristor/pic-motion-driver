@@ -82,7 +82,6 @@
 	#define TIMER0_INTRET
 	#define __delay_ms(x) usleep(x*1000)
 #else
-	#define INTERRUPT __attribute__((interrupt(auto_psv)))
 	#define TIMER0_INTRET IFS0bits.T1IF = 0;
 	typedef long double ldouble;
 	#define dbg(...)

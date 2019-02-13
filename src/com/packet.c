@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "packet.h"
 #include "uart.h"
 #include "can.h"
