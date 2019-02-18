@@ -61,6 +61,6 @@ To run simulation which uses device named can_big
 
 # Boards
 
-- make board=V1_OLD - dsPIC33FJ128M802 with older pcb design
-- make board=V1_NEW - dsPIC33FJ128M802 with newer pcb design
+- make board=V1 ver=OLD - dsPIC33FJ128M802 with older pcb design
+- make board=V1 ver=NEW - dsPIC33FJ128M802 with newer pcb design
 - make board=V2 - new PIC32MK1024MCF064 board

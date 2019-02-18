@@ -1,9 +1,9 @@
 #include "config.h"
+#include "hw/motor.h"
+#include "hw/encoder.h"
+
+#include "packet.h"
 #include "regulator.h"
-#include "drive/motor.h"
-#include "drive/encoder.h"
-#include "com/packet.h"
-#include "util/math.h"
 #include "math.h"
 
 #undef dbg
@@ -29,7 +29,8 @@ static float g_accel = 0, g_alpha = 0;
 // changes in interrupt, so here are all volatiles
 static volatile ldouble positionL=0, positionR=0, Xlong = 0, Ylong = 0;
 static volatile long X = 0, Y = 0;
-static volatile signed long current_speed=0, angular_speed=0;
+// static volatile long current_speed=0, angular_speed=0;
+static volatile float current_speed=0, angular_speed=0;
 static volatile unsigned long sys_time = 0;
 
 // ----- variables for controlling robot -----
@@ -120,7 +121,7 @@ int a_ptr=0;
 static long speed_mode_error_accum1 = 0;
 static long speed_mode_error_accum2 = 0;
 
-void INTERRUPT _T1Interrupt(void) {
+void regulator_interrupt(void) {
 	
 	static float vL,vR;
 	static long sint, cost, theta = 0;
@@ -129,7 +130,7 @@ void INTERRUPT _T1Interrupt(void) {
 	static float x, y;
 	
 	sys_time++;
-	TIMER0_INTRET
+	
 	
 #ifdef SIM
 	struct timespec now;
@@ -165,11 +166,11 @@ void INTERRUPT _T1Interrupt(void) {
 	//************************************************************************
 	
 	// read left encoder
-	vL = encoder_left_get_count();
+	vL = encoder_odometry_left_get_velocity();
 	positionL += vL * wheel_correction_coeff;
 
 	// read right encoder
-	vR = encoder_right_get_count();
+	vR = encoder_odometry_right_get_velocity();
 	positionR += vR;
 	
 	// speed
@@ -247,6 +248,13 @@ void INTERRUPT _T1Interrupt(void) {
 	
 	// REGULATOR
 	//*************************************************************************
+	
+	// TEST
+	// c_regulator_mode = 5;
+	// motor_left_set_power(encoder_odometry_left_get_count());
+	// motor_right_set_power(encoder_odometry_right_get_count());
+	//
+	
 	switch(c_regulator_mode) {
 		
 		case REGULATOR_POSITION: {
@@ -372,19 +380,18 @@ void INTERRUPT _T1Interrupt(void) {
 			start_packet(MSG_DEBUG_ENCODER1);
 				put_long(positionL);
 				put_word(vL);
-				put_word(get_left_motor_power());
+				put_word(motor_left_get_power());
 			end_packet();
 			
 			start_packet(MSG_DEBUG_ENCODER2);
 				put_long(positionR);
 				put_word(vR);
-				put_word(get_right_motor_power());
+				put_word(motor_right_get_power());
 			end_packet();
 		})
 	}
 	
 	report_status();
-	TIMER0_INTRET
 }
 
 void set_regulator_mode(int mode) {

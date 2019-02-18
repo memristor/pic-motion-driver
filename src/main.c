@@ -1,9 +1,10 @@
 #include "config.h"
-#include "chip_config.h"
-#include "regulator.h"
 #include "init.h"
-#include "com/packet.h"
-#include "drive/motor.h"
+#include "hw/motor.h"
+
+#include "packet.h"
+#include "regulator.h"
+
 
 #ifdef SIM
 #include <unistd.h>
@@ -15,7 +16,6 @@ int main(void) {
 
 	int16_t tmpX, tmpY, tmp, tmpO;
 	char command, v, direction;
-
 	
 	#ifdef SIM
 	if(argc > 1) {
@@ -25,11 +25,12 @@ int main(void) {
 	
 	initialize();
 	
-	start_packet('L');
-		put_byte('L');
-	end_packet();
 	while(1)
 	{
+	
+		// start_packet('L');
+			// put_byte('L');
+		// end_packet();
 		#ifdef SIM
 		usleep(1000);
 		#endif

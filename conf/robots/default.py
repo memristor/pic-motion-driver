@@ -1,6 +1,6 @@
 conf_floats={
 		'wheel_distance': 255.2,
-		'wheel_r1': 63.6,
+		'wheel_r1': 65.0,
 		'wheel_r2': 65.0,
 		
 		'pid_d_p': 2.5,

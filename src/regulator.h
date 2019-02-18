@@ -72,20 +72,7 @@
 // --- regulator PD (proportional, differential) components, trial & error ---
 // depends on timer interrupt period
 
-#ifdef SIM
-	#include <unistd.h>
-	#include <stdio.h>
-	typedef double ldouble;
-	#define dbg(...) printf(__VA_ARGS__)
-	
-	#define INTERRUPT
-	#define TIMER0_INTRET
-	#define __delay_ms(x) usleep(x*1000)
-#else
-	#define TIMER0_INTRET IFS0bits.T1IF = 0;
-	typedef long double ldouble;
-	#define dbg(...)
-#endif
+
 
 // ----------------------------------------------------------------------------
 
@@ -130,5 +117,6 @@ void soft_stop(void);
 
 void cmd_pwm_opto();
 
+void regulator_interrupt();
 #endif	/* REGULACIJA_H */
 

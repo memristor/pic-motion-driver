@@ -4,70 +4,49 @@ TOOLCHAIN := $(TOOLCHAIN_PATH)xc16-
 
 robot := big
 # board := V1_NEW
-board := V2
+# board := V1
+board = V2
+
+
 mplab=v4.15
 dev := vcan0
 
 ##########################################
-
-src := \
-	src/main.c \
-	src/com/uart.c \
-	src/com/can.c \
-	src/com/packet.c \
-	src/drive/encoder.c \
-	src/drive/motor.c \
-	src/timer.c \
-	src/util/math.c \
-	src/regulator.c \
-	src/config.c \
-	src/init.c \
-	src/bootloader.c
+src_base := 			\
+	src/main.c			\
+	src/init.c			\
+	src/regulator.c     \
+	src/packet.c        \
+	src/math.c          \
+	src/config.c        \
+	src/hw/can.c        \
+	src/hw/uart.c        \
 	
-src_v2 := \
-	src/main.c \
-	src/com/uart.v2.c \
-	src/com/can.v2.c \
-	src/com/packet.c \
-	src/drive/encoder.v2.c \
-	src/drive/motor.v2.c \
-	src/timer.c \
-	src/util/math.c \
-	src/regulator.c \
-	src/config.c \
-	src/init.v2.c
-# 	src/bootloader.c
 	
-sim_src := \
-	src/regulator.c \
-	src/config.c \
-	src/main.c \
-	src/init.sim.c \
-	src/com/packet.c \
-	src/util/math.c \
-	src/timer.sim.c \
-	src/drive/motor.sim.c \
-	src/drive/encoder.sim.c \
-	src/com/uart.sim.c \
-	src/com/can.sim.c
+hw_src := 		  \
+	init.c		  \
+	can.c         \
+	uart.c        \
+	encoder.c     \
+	motor.c       \
+	timer.c       \
+	fuses.c  	  \
+	
 
 .PHONY: sim config
 
+sim: board = SIM
 
-obj = $(patsubst %.c,%.o,$(src))
-app := AppImage
+lcv := $(shell echo $(board) | tr A-Z a-z)
+ucv := $(shell echo $(board) | tr a-z A-Z)
+ver := $(ucv)
 
-ifeq ($(board),V2)
-	TOOLCHAIN_PATH := /opt/microchip/xc32/v2.15/bin/
-	TOOLCHAIN := $(TOOLCHAIN_PATH)xc32-
-	chip=32MK1024MCF064
-	flags := -mips32 -mprocessor=$(chip)
-	flags2 := -mips32 -mprocessor=$(chip)
-	src := $(src_v2)
-else
+flags := 
+###### TOOLCHAIN CONFIG ######
+ifeq ($(ucv),V1)
 	chip=33FJ128MC802
 	report_flags := -Wa,-alh,-L -Wl,--report-mem 
-	flags := -T p33FJ128MC802.gld -mcpu=$(chip) -omf=elf\
+	flags := $(flags) -T p33FJ128MC802.gld -mcpu=$(chip) -omf=elf\
 		-Wl,,--defsym=__MPLAB_BUILD=1,,--script=p33FJ128MC802.gld,--check-sections,\
 		--data-init,--pack-data,--handles,--isr,--no-gc-sections,--fill-upper=0,\
 		--stackguard=16,--library-path="..",--no-force-link,--smart-io $(report_flags) -Wfatal-error
@@ -75,6 +54,21 @@ else
 	flags2 := -omf=elf -no-legacy-libc -msmart-io=1 -Wall  -mcpu=$(chip)
 endif
 
+ifeq ($(ucv),V2)
+	TOOLCHAIN_PATH := /opt/microchip/xc32/v2.15/bin/
+	TOOLCHAIN := $(TOOLCHAIN_PATH)xc32-
+	chip=32MK1024MCF064
+	harmony=/home/nikola/microchip/harmony/v2_06/
+	flags := $(flags)  -mprocessor=$(chip)  	-L$(harmony)/bin/framework/peripheral/ -l:PIC$(chip)_peripherals.a
+	flags2 := -mprocessor=$(chip) -I$(harmony)/framework/peripheral -I$(harmony)/framework/ -O1
+	src := $(src_v2)
+endif
+###############################
+
+
+src := $(src_base) $(addprefix src/hw/$(lcv)/,$(hw_src))
+obj := $(patsubst %.c,%.o,$(src))
+app := AppImage
 
 clock=USE_CRYSTAL
 # clock=USE_FRCPLL
@@ -89,22 +83,26 @@ $(app).elf: $(obj)
 	$(TOOLCHAIN)gcc $^ -o $@  $(flags) 
 	
 %.o: %.c
-	$(TOOLCHAIN)gcc  $^ -c -DBOARD_$(board) -D$(clock) -o $@ $(flags2)
+	$(TOOLCHAIN)gcc  $^ -c -DBOARD_$(ver) -D$(clock) -o $@ $(flags2)
 
 
 ############################
 
 config:
 	python3 conf/gen_config.py mcu $(robot) > src/config_keys.h
+	echo '#include' '"'hw/$(lcv)/hw.h'"' >> src/config_keys.h
 
 js:
 	python3 conf/gen_config.py js $(robot) > config_const.js
 	
 py:
 	python3 conf/gen_config.py py $(robot) > const_motion.py
-	
-sim: $(sim_src)
+
+
+src_sim := $(src_base) $(addprefix src/hw/sim/,$(hw_src))
+sim: $(src_sim)
 	python3 conf/gen_config.py mcu sim > src/config_keys.h
+	echo '#include' '"'hw/sim/hw.h'"' >> src/config_keys.h
 	gcc $^ -g -o sim -DSIM -lm -pthread
 
 
@@ -120,6 +118,6 @@ upload:
 	
 clean:
 	rm -f const_motion.py config_const.js src/config_keys.h
-	rm -f src/*.o src/drive/*.o src/com/*.o src/util/*.o
+	find -name '*.o' -delete
 	rm -f $(app).elf $(app).hex regions.txt
 	rm -rf sim tmp
