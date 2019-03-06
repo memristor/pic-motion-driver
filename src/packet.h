@@ -3,10 +3,10 @@
 #include <stdint.h>
 
 #ifdef SIM
-#include <stdio.h>
-#define dbg(...) printf(__VA_ARGS__)
+	#include <stdio.h>
+	#define dbg(x) x
 #else
-#define dbg(...)
+	#define dbg(x)
 #endif
 
 #define MAX_PKT_SIZE 64

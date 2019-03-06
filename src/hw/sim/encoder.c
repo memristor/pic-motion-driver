@@ -17,7 +17,7 @@ int encoder_odometry_left_get_velocity() {
 
 
 int encoder_odometry_right_get_velocity() {
-	return left_motor_pwm * 1;
+	return right_motor_pwm * 1;
 }
 
 int encoder_odometry_left_get_count() {

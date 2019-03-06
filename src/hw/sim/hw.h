@@ -6,5 +6,5 @@
 #include <unistd.h>
 #include <stdio.h>
 typedef double ldouble;
-#define dbg(...) printf(__VA_ARGS__)
+#define dbg(x) x
 // #define __delay_ms(x) usleep(x*1000)

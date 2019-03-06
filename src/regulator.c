@@ -6,8 +6,8 @@
 #include "regulator.h"
 #include "math.h"
 
-#undef dbg
-#define dbg(...)
+// #undef dbg
+// #define dbg(...)
 
 long K1;
 float K2;
@@ -266,7 +266,7 @@ void regulator_interrupt(void) {
 		
 			// PID 					proportional 						integral 						differential
 			regulator_distance = (error_distance * c_pid_d_p)  /*+  (speed_accum_d * c_pid_d_i)*/  -  (c_pid_d_d * current_speed);
-			dbg(printf("error_dist: %ld d_ref: %ld L: %lf K1: %ld K2: %f vL: %f vR: %f\n", error, d_ref, L, K1, K2, vL, vR));
+			// dbg(printf("error_dist: %ld d_ref: %ld L: %lf K1: %ld K2: %f vL: %f vR: %f\n", speed_error, d_ref, L, K1, K2, vL, vR));
 			
 			int rot_speed_error = error_angular - (-current_speed);
 			static float speed_accum_r = 0;
@@ -275,7 +275,7 @@ void regulator_interrupt(void) {
 	
 			// PID 					proportional 					integral 						differential
 			regulator_rotation = (error_angular * c_pid_r_p)  /*+  (speed_accum_r * c_pid_r_i)*/ - 	(-angular_speed * c_pid_r_d);
-			dbg(printf("rot_error: %ld, reg_rot: %ld t_ref: %ld orientation: %lf\n", error, regulator_rotation, t_ref, orientation));
+			// dbg(printf("rot_error: %ld, reg_rot: %ld t_ref: %ld orientation: %lf\n", rot_speed_error, regulator_rotation, t_ref, orientation));
 	
 			if(c_distance_regulator == 0) {
 				regulator_distance = 0;
