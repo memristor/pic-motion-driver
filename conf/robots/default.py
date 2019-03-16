@@ -1,5 +1,5 @@
 conf_floats={
-		'wheel_distance': 255.2,
+		'wheel_distance': 275.0,
 		'wheel_r1': 65.0,
 		'wheel_r2': 65.0,
 		
@@ -65,11 +65,13 @@ conf_bytes={
 		'enable_stuck': 0,
 		'stuck': 0, # is it stuck right now
 		'debug': 0,
+		'debug2': 0,
 		'status_change_report': 1,
 		'keep_count': 100,
 		'tmr': 20,
 		'motor_connected': 1,
 		'debug_encoders': 0,
+		'debug_errors': 0,
 		'regulator_mode': 0,
 		'motor_flip_left': 1,
 		'motor_flip_right': 1

@@ -95,7 +95,7 @@ static void init_timer_pwm1() {
 	PLIB_OC_ModeSelect(OC, OC_COMPARE_PWM_MODE_WITHOUT_FAULT_PROTECTION );
 	PLIB_TMR_Period32BitSet(TMR_ID_2, SYSCLK/PWM_FREQ/2 - 1);
     PLIB_TMR_PrescaleSelect(TMR_ID_2, TMR_PRESCALE_VALUE_1);
-    PLIB_OC_PulseWidth32BitSet(OC, 0.1*PR2); 
+    PLIB_OC_PulseWidth32BitSet(OC, 0.0*PR2); 
     PLIB_TMR_Start(TMR_ID_2);
     PLIB_OC_Enable(OC);
 }
@@ -108,7 +108,7 @@ static void init_timer_pwm2() {
 	PLIB_OC_ModeSelect(OC, OC_COMPARE_PWM_MODE_WITHOUT_FAULT_PROTECTION );
 	PLIB_TMR_Period32BitSet(TMR_ID_3, SYSCLK/PWM_FREQ/2 - 1);
     PLIB_TMR_PrescaleSelect(TMR_ID_3, TMR_PRESCALE_VALUE_1);
-    PLIB_OC_PulseWidth32BitSet(OC, 0.4*PR3); 
+    PLIB_OC_PulseWidth32BitSet(OC, 0.0*PR3); 
     PLIB_TMR_Start(TMR_ID_3);
     PLIB_OC_Enable(OC);
 }
@@ -136,8 +136,8 @@ void motor_init(void) {
 	}
 	
 	long unsigned cnt = 0;
-	c_motor_speed_limit = 10000;
-	c_motor_rate_of_change=10000;
+	c_motor_speed_limit = 3200;
+	c_motor_rate_of_change=3200;
 }
 
 void motor_turn_off(void) {

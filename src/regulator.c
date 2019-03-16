@@ -6,8 +6,8 @@
 #include "regulator.h"
 #include "math.h"
 
-// #undef dbg
-// #define dbg(...)
+#undef dbg
+#define dbg(...)
 
 long K1;
 float K2;
@@ -175,6 +175,7 @@ void regulator_interrupt(void) {
 	
 	// speed
 	current_speed = (vL + vR) / 2; // v = s/t, current_speed [inc/ms]
+	int dbl = (vL + vR); // v = s/t, current_speed [inc/ms]
 	angular_speed = vR - vL; // angular speed [inc/ms]
 
 	// position
@@ -186,8 +187,8 @@ void regulator_interrupt(void) {
 	theta = orientation * 2*SINUS_MAX / (K1 / 2);
 	sin_cos(theta, &sint, &cost);
 	
-	x = current_speed * cost;
-	y = current_speed * sint;
+	x = dbl * cost / 2;
+	y = dbl * sint / 2;
 
 	// update increment position
 	Xlong += (x/SINUS_AMPLITUDE);
@@ -259,22 +260,22 @@ void regulator_interrupt(void) {
 		
 		case REGULATOR_POSITION: {
 		
-			int speed_error = error_distance - (-current_speed);
+			long speed_error = error_distance - (-current_speed);
 			static float speed_accum_d = 0;
 			speed_accum_d += speed_error * c_accum_speed;
 			speed_accum_d = clip2(c_accum_clip, speed_accum_d);
 		
 			// PID 					proportional 						integral 						differential
-			regulator_distance = (error_distance * c_pid_d_p)  /*+  (speed_accum_d * c_pid_d_i)*/  -  (c_pid_d_d * current_speed);
+			regulator_distance = (error_distance * c_pid_d_p)  +  (speed_accum_d * c_pid_d_i)  -  (c_pid_d_d * current_speed);
 			// dbg(printf("error_dist: %ld d_ref: %ld L: %lf K1: %ld K2: %f vL: %f vR: %f\n", speed_error, d_ref, L, K1, K2, vL, vR));
 			
-			int rot_speed_error = error_angular - (-current_speed);
+			long rot_speed_error = error_angular - (-current_speed);
 			static float speed_accum_r = 0;
 			speed_accum_r += rot_speed_error * c_accum_speed;
 			speed_accum_r = clip2(c_accum_clip, speed_accum_r);
 	
 			// PID 					proportional 					integral 						differential
-			regulator_rotation = (error_angular * c_pid_r_p)  /*+  (speed_accum_r * c_pid_r_i)*/ - 	(-angular_speed * c_pid_r_d);
+			regulator_rotation = (error_angular * c_pid_r_p)  +  (speed_accum_r * c_pid_r_i) - 	(-angular_speed * c_pid_r_d);
 			// dbg(printf("rot_error: %ld, reg_rot: %ld t_ref: %ld orientation: %lf\n", rot_speed_error, regulator_rotation, t_ref, orientation));
 	
 			if(c_distance_regulator == 0) {
@@ -358,8 +359,8 @@ void regulator_interrupt(void) {
 			}
 			
 			break;
-		}
 			
+		}
 		case REGULATOR_SPEED: {
 			
 			speed_mode_error_accum1 = clipl2(c_accum_clip, speed_mode_error_accum1 + (c_setpoint1 - vL) * c_pid_i1);
@@ -379,14 +380,28 @@ void regulator_interrupt(void) {
 		RUN_EACH_NTH_CYCLES(int, 50, {
 			start_packet(MSG_DEBUG_ENCODER1);
 				put_long(positionL);
-				put_word(vL);
+				put_byte(vL);
 				put_word(motor_left_get_power());
 			end_packet();
 			
 			start_packet(MSG_DEBUG_ENCODER2);
 				put_long(positionR);
-				put_word(vR);
+				put_byte(vR);
 				put_word(motor_right_get_power());
+			end_packet();
+		})
+	}
+	
+	if(c_debug_errors) {
+		RUN_EACH_NTH_CYCLES(int, 50, {
+			start_packet(MSG_DEBUG_DISTANCE);
+				put_long(d_ref);
+				put_word(error_distance);
+			end_packet();
+		
+			start_packet(MSG_DEBUG_ROTATION);
+				put_long(t_ref);
+				put_word(error_angular);
 			end_packet();
 		})
 	}
@@ -432,7 +447,7 @@ void wait_for_regulator() {
 	unsigned long t = sys_time;
 	while(sys_time == t) {
 		#ifdef SIM
-			usleep(100);
+			usleep(10);
 		#endif
 	}
 }
@@ -745,48 +760,70 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	length = get_distance_to(Xd, Yd);
 	if(length > 1) {
 		rotate_absolute_angle( RAD_TO_DEG_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + (direction < 0 ? 180 : 0) );
+		// rotate_absolute_angle( RAD_TO_DEG_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + (direction < 0 ? 180 : 0) );
 	} else {
 		current_status = STATUS_ERROR;
+		report_status();
 		return;
 	}
 
 	v_end = c_vmax * /*end_speed*/0 / 256;
 	L_dist = MM_TO_INC(length);
-
+	
+	float vmax;
+	long target_dref=0;
+	if(c_debug) {
+		start_packet(MSG_DEBUG);
+			put_long(L_dist);
+		end_packet();
+	}
 	// calculate phase durations
-	T1 = (c_vmax - v0) / g_accel;
+	T1 = (c_vmax - v0) / g_accel + 0.5;
 	L0 = L;
 	L1 = current_speed * T1 + g_accel * T1 * T1 / 2;
 
-	T3 = (c_vmax - v_end) / g_accel;
+	T3 = (c_vmax - v_end) / g_accel + 0.5;
 	L3 = c_vmax * T3 - g_accel * T3 * T3 / 2;
 
 	if( (L1 + L3) < L_dist) {
 		// can reach c_vmax
 		L2 = L_dist - L1 - L3;
-		T2 = L2 / c_vmax;
+		// T2 = ceil(L2 / c_vmax);
+		T2 = L2 / c_vmax + 0.5;
+		target_dref = d_ref + direction * L_dist;
+		vmax = c_vmax;
 	} else {
 		// can't reach c_vmax
 		T2 = 0;
 		v_vrh = sqrt(g_accel * L_dist + (current_speed * current_speed + v_end * v_end) / 2);
 		if( (v_vrh < current_speed) || (v_vrh < v_end) ) {
 			current_status = STATUS_ERROR;
+			report_status();
 			return; //mission impossible
 		}
-
-		T1 = (v_vrh - current_speed) / g_accel;
-		T3 = (v_vrh - v_end) / g_accel;
+		vmax = v_vrh;
+		T1 = (v_vrh - current_speed) / g_accel + 0.5;
+		T3 = (v_vrh - v_end) / g_accel + 0.5;
 	}
 
 	t = t0 = sys_time;
 	t1 = t0 + T1;
 	t2 = t1 + T2;
 	t3 = t2 + T3;
+	
+	long T = T1+T2+T3;
+	
+	
 	D0 = d_ref;
-
+	long orig = d_ref;
+	long ref = 0;
+	long ref_max = g_accel * T1*T1/2 + vmax * T2 + g_accel * T3 * T3 / 2;
+	long ref_err = (L_dist - ref_max) ;
+	// ref_err = 0;
 	current_status = STATUS_MOVING;
 	report_status();
-	while(t < t3) {
+	
+	while(t <= t3) {
 		wait_for_regulator();
 		t = sys_time;
 		if(get_command() == ERROR) {
@@ -794,22 +831,38 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		}
 		if(t <= t2) {// refresh angle reference
 			if(direction > 0) {
+				// t_ref = t_ref + clipl2(30, RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) - t_ref);
+				//~ t_ref += RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) - t_ref;
 				t_ref = RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong));
 			} else {
-				t_ref = RAD_TO_INC_ANGLE(atan2(Ylong-Ydlong, Xlong-Xdlong));
+				// t_ref += clipl2(30, RAD_TO_INC_ANGLE(atan2(-(Ydlong-Ylong), -(Xdlong-Xlong))) - t_ref);
+				t_ref = RAD_TO_INC_ANGLE(atan2(-(Ydlong-Ylong), -(Xdlong-Xlong)));
+				//~ t_ref += RAD_TO_INC_ANGLE(atan2(-(Ydlong-Ylong), -(Xdlong-Xlong))) - t_ref;
 			}
 		}
-
+		
 		if(t <= t1) {// speeding up phase
-			v_ref = v0 + g_accel * (t-t0);
-			D1 = D2 = d_ref = D0 + direction * (v0 * (t-t0) + g_accel * (t-t0)*(t-t0)/2);
+			ref = g_accel * (t-t0)*(t-t0)/2;
 		} else if(t <= t2) {// constant speed phase
-			v_ref = c_vmax;
-			D2 = d_ref = D1 + direction * c_vmax * (t-t1);
+			ref = (g_accel * T1*T1/2) + vmax * (t-t1);
 		} else if(t <= t3) {// slowing down phase
-			d_ref = D2 + direction * (v_ref * (t-t2) - g_accel * (t-t2) * (t-t2) / 2);
+			ref = (g_accel * T1*T1/2) + vmax * T2 + (vmax * (t-t2) - g_accel * (t-t2) * (t-t2) / 2);
+		}
+		d_ref = orig + direction * (ref + ref_err * (t-t0) / T);
+	}
+	
+	if (c_debug2) {
+		while(target_dref - d_ref > 0) {
+			wait_for_regulator();
+			t = sys_time;
+			if(get_command() == ERROR) {
+				return;
+			}
+		
+			d_ref += clipl2(1, target_dref - d_ref);
 		}
 	}
+	// while(
 	current_status = STATUS_IDLE;
 }
 
@@ -950,6 +1003,7 @@ char turn(int angle) {
 	sign = angle >= 0 ? 1 : -1;
 
 	Fi_total = DEG_TO_INC_ANGLE(angle);
+	
 	float w_max;
 	w_max = c_omega;
 	T1 = T3 = c_omega / g_alpha;
@@ -957,25 +1011,47 @@ char turn(int angle) {
 	if(Fi1 > (sign * Fi_total / 2)) {
 		// triangle profile (speeds up to some speed and then slows down to 0)
 		Fi1 = sign  * Fi_total / 2;
-		T1 = T3 = sqrt(2 * Fi1 / g_alpha);
+		T1 = T3 = sqrt(2 * Fi1 / g_alpha) + 0.5;
+		// a * T^2/2 = Fi
 		T2 = 0;
-		w_max = w_max * (g_alpha * T1) / c_omega;
+		w_max = g_alpha * T1;
 	} else {
 		// trapezoid profile of speed graph (similar like triangle profile except there is period of constant speed in between)
-		T2 = (sign * Fi_total - 2 * Fi1) / c_omega;
+		T2 = (sign * Fi_total - 2 * Fi1) / c_omega + 0.5;
+		w_max = c_omega;
 	}
-
-	angle_ref = t_ref;
+	
+	long s = g_alpha * T1*T1/2 * 2 + T2 * w_max;
+	long target_dref=0;
+	if(c_debug) {
+		start_packet(MSG_DEBUG);
+			put_word(Fi_total);
+			put_word(s);
+		end_packet();
+		start_packet(MSG_DEBUG2);
+			put_word(T1);
+			put_word(T2);
+		end_packet();
+		
+	}
+	
+	long orig = t_ref;
+	// angle_ref = t_ref;
 	t = t0 = sys_time;
 	t1 = t0 + T1;
 	t2 = t1 + T2;
 	t3 = t2 + T3;
-	
+	long T = T1+T2+T3;
+	long max_ref = g_alpha * T1*T1/2 + w_max * T2 + g_alpha * T3*T3/2;
+	long ref_err = absl(Fi_total) - max_ref;
+	// ref_err = 0;
 	dbg(printf("T BEF: %lf\n", angle_ref);)
-	dbg(printf("T PLAN: %ld => %ld\n", Fi_total, angle_ref+Fi_total);)
+	dbg(printf("T PLAN: %ld => %lf\n", Fi_total, angle_ref+Fi_total);)
 
 	// printf("turn times: %d,%d,%d total: %d rots: %ld %ld %ld\n", T1,T2,T3, T1+T2+T3, Fi_total, Fi1, K1);
-	
+	// double prev;
+	int c1,c2,c3;
+	w_ref = 0;
 	current_status = STATUS_ROTATING;
 	report_status();
 	while(t <= t3) {
@@ -984,17 +1060,34 @@ char turn(int angle) {
 		if(get_command() == ERROR) return ERROR;
 
 		if(t <= t1) {
-			w_ref = w_max * (t-t0)/T1;
-			angle_ref += sign * (w_ref - g_alpha / 2);
+			// angle_ref = sign * T1*T1/2*g_alpha;
+			// w_ref = w_max * (t-t0)/T1;
+			c1++;
+			// w_ref += g_alpha;
+			// angle_ref += sign * (w_ref - g_alpha / 2);
+			// prev=angle_ref;
+			angle_ref = g_alpha * (t-t0)*(t-t0)/2;
 		} else if(t <= t2) {
-			w_ref = w_max;
-			angle_ref += sign * c_omega;
+			// w_ref = w_max;
+			// w_ref = c_omega;
+			angle_ref = g_alpha * T1*T1/2 + w_max * (t-t1);
+			c2++;
 		} else if(t <= t3) {
-			w_ref = w_max - w_max * (t-t2)/T1;
-			angle_ref += sign * (w_ref + g_alpha / 2);
+			angle_ref = g_alpha * T1*T1/2 + w_max * T2+ (w_max*(t-t2) - g_alpha * (t-t2)*(t-t2)/2);
+			// w_ref = w_max - w_max * (t-t2)/T3;
+			c3++;
+			// w_ref -= g_alpha;
+			// angle_ref += sign * (w_ref + g_alpha / 2);
+			// angle_ref = prev + sign * T3*T3/2*g_alpha;
 		}
-		t_ref = angle_ref;
+		// angle_ref += sign * (w_ref);
+		t_ref = orig + sign * (angle_ref + ref_err * (t-t0)/T);
 	}
+	// start_packet(MSG_DEBUG3);
+			// put_word(T1);
+			// put_word(T2);
+			// put_word(T3);
+		// end_packet();
 	dbg(printf("T AFT: %lf\n", angle_ref);)
 	current_status = STATUS_IDLE;
 	return OK;
@@ -1507,7 +1600,7 @@ void soft_stop(void) {
 }
 
 void set_rotation_speed(unsigned char max_speed, unsigned char max_accel) {
-	c_omega = VMAX * (unsigned char)max_speed / 256;
+	c_omega = VMAX * max_speed / 256;
 	
 	if(c_omega < (VMAX * 161 / 256)) {
 		// in 500 ms speeds up to c_vmax
@@ -1520,7 +1613,7 @@ void set_rotation_speed(unsigned char max_speed, unsigned char max_accel) {
 
 void set_speed(unsigned char tmp)
 {
-	set_speed_accel(VMAX * (unsigned char)tmp / 256);
+	set_speed_accel(VMAX * tmp / 256);
 }
 
 void reset_stuck() {

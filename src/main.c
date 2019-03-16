@@ -17,6 +17,8 @@ int main(void) {
 	int16_t tmpX, tmpY, tmp, tmpO;
 	char command, v, direction;
 	
+	// printf("%ld\n", clipl2(7, -2500));
+	// printf("%ld\n", clipl2(7, 2500));
 	#ifdef SIM
 	if(argc > 1) {
 		can_iface = argv[1];

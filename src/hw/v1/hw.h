@@ -8,4 +8,3 @@
 #define DMA_SPACE __attribute__((space(dma)))
 
 typedef long double ldouble;
-#define dbg(...)

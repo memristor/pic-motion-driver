@@ -37,5 +37,10 @@ messages = {
 	'send_status_and_position': 'P',
 	'status_changed': 'p',
 	'encoder1_ready': '!',
-	'encoder2_ready': '@'
+	'encoder2_ready': '@',
+	'debug_distance': 'D',
+	'debug_rotation': 'R',
+	'debug':'d',
+	'debug2': ',',
+	'debug3': '.'
 }

@@ -2,6 +2,10 @@
 #define PACKET_H
 #include <stdint.h>
 
+// #ifdef dbg
+// #undef dbg
+// #endif
+
 #ifdef SIM
 	#include <stdio.h>
 	#define dbg(x) x

@@ -1,4 +1,4 @@
-TOOLCHAIN_PATH := /opt/microchip/xc16/v1.30/bin/
+TOOLCHAIN_PATH := /opt/microchip/xc16/v1.36/bin/
 TOOLCHAIN := $(TOOLCHAIN_PATH)xc16-
 
 
@@ -9,6 +9,7 @@ board = V2
 
 
 mplab=v4.15
+mplab=v5.15
 dev := vcan0
 
 ##########################################
