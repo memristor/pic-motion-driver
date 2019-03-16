@@ -83,8 +83,8 @@ void try_timer_pwm() {
 	while(1){}
 }
 
-#define SYSCLK 120000000
-#define PWM_FREQ    17000
+#define SYSCLK 120000000ul
+#define PWM_FREQ    17000ul
 #define DUTY_CYCLE  10
 
 static void init_timer_pwm1() {
@@ -135,9 +135,8 @@ void motor_init(void) {
 		first_time=0;
 	}
 	
-	long unsigned cnt = 0;
 	c_motor_speed_limit = 3200;
-	c_motor_rate_of_change=3200;
+	c_motor_rate_of_change = 3200;
 }
 
 void motor_turn_off(void) {
@@ -153,9 +152,6 @@ void motor_turn_off(void) {
 
 
 static inline void motor_left_pwm(int pwm) {
-	// apply left pwm
-	// pwm = -pwm;
-	
 	if(pwm >= 0) {
 		LEFT_PIN_SW = 0;
 	} else {
@@ -163,7 +159,7 @@ static inline void motor_left_pwm(int pwm) {
 		pwm += MOTOR_MAX_SPEED;
 	}
 	
-	PLIB_OC_PulseWidth32BitSet(OC_ID_3, (PR2-1) * clip2(MOTOR_MAX_POWER, pwm)/MOTOR_MAX_POWER);
+	PLIB_OC_PulseWidth32BitSet(OC_ID_3, (uint32_t)(PR2-1) * (uint32_t)clip2(MOTOR_MAX_POWER, pwm)/(uint32_t)MOTOR_MAX_POWER);
 }
 
 static inline void motor_right_pwm(int pwm) {
@@ -176,7 +172,7 @@ static inline void motor_right_pwm(int pwm) {
 		pwm += MOTOR_MAX_SPEED;
 	}
 	
-	PLIB_OC_PulseWidth32BitSet(OC_ID_2, (PR3-1) * clip2(MOTOR_MAX_POWER, pwm)/MOTOR_MAX_POWER);
+	PLIB_OC_PulseWidth32BitSet(OC_ID_2, (uint32_t)(PR3-1) * (uint32_t)clip2(MOTOR_MAX_POWER, pwm)/(uint32_t)MOTOR_MAX_POWER);
 }
 
 
