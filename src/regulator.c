@@ -174,7 +174,9 @@ void regulator_interrupt(void) {
 	// read right encoder
 	vR = encoder_odometry_right_get_velocity();
 	encR += vR;
-	positionR = encR * wheel_correction_coeff;
+	positionR = (double)encR * wheel_correction_coeff;
+	
+	ldouble positionR_2 = (encR * c_wheel_r2) / c_wheel_r1;
 	
 	
 	// speed
@@ -393,6 +395,16 @@ void regulator_interrupt(void) {
 				put_byte(vR);
 				put_word(motor_right_get_power());
 			end_packet();
+		
+			start_packet(MSG_DEBUG_ENCODER);
+				put_long(encL);
+				put_long(encR);
+			end_packet();
+			
+			
+			start_packet(MSG_DEBUG4);
+				put_long(positionR - positionR_2);
+			end_packet();
 		})
 	}
 	
@@ -439,6 +451,7 @@ void set_regulator_mode(int mode) {
 
 void reset_driver(void) {
 	positionR = positionL = 0;
+	encR = encL = 0;
 	L = orientation = 0;
 	
 	motor_init();

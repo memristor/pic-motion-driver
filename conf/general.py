@@ -34,6 +34,7 @@ commands = {
 messages = {
 	'debug_encoder1': '1',
 	'debug_encoder2': '2',
+	'debug_encoder': '3',
 	'send_status_and_position': 'P',
 	'status_changed': 'p',
 	'encoder1_ready': '!',
@@ -42,5 +43,6 @@ messages = {
 	'debug_rotation': 'R',
 	'debug':'d',
 	'debug2': ',',
-	'debug3': '.'
+	'debug3': '.',
+	'debug4': '-'
 }
