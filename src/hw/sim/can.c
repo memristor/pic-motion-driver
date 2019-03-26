@@ -99,7 +99,7 @@ uint16_t* can_get_packet() {
 		return 0;
 	}
 	if(frame.can_id != (default_tx_id | (default_tx_eid ? CAN_EFF_FLAG : 0))) {
-		printf("wrong can id: %x\n", (uint32_t)frame.can_id);
+		//printf("wrong can id: %x\n", (uint32_t)frame.can_id);
 		return 0;
 	}
 	int8_t *msg = (int8_t*)&pkt[3];

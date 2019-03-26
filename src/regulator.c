@@ -28,6 +28,7 @@ static float g_accel = 0, g_alpha = 0;
 */
 // changes in interrupt, so here are all volatiles
 static volatile ldouble positionL=0, positionR=0, Xlong = 0, Ylong = 0;
+static long long encL=0,encR=0;
 static volatile long X = 0, Y = 0;
 // static volatile long current_speed=0, angular_speed=0;
 static volatile float current_speed=0, angular_speed=0;
@@ -167,11 +168,14 @@ void regulator_interrupt(void) {
 	
 	// read left encoder
 	vL = encoder_odometry_left_get_velocity();
-	positionL += vL * wheel_correction_coeff;
-
+	encL += vL;
+	positionL = encL;
+	
 	// read right encoder
 	vR = encoder_odometry_right_get_velocity();
-	positionR += vR;
+	encR += vR;
+	positionR = encR * wheel_correction_coeff;
+	
 	
 	// speed
 	current_speed = (vL + vR) / 2; // v = s/t, current_speed [inc/ms]
@@ -1020,6 +1024,14 @@ char turn(int angle) {
 		T2 = (sign * Fi_total - 2 * Fi1) / c_omega + 0.5;
 		w_max = c_omega;
 	}
+	long T = T1+T2+T3;
+	if(T == 0) {
+		current_status = STATUS_ROTATING;
+		report_status();
+		current_status = STATUS_IDLE;
+		report_status();
+		return OK;
+	}
 	
 	long s = g_alpha * T1*T1/2 * 2 + T2 * w_max;
 	long target_dref=0;
@@ -1041,7 +1053,7 @@ char turn(int angle) {
 	t1 = t0 + T1;
 	t2 = t1 + T2;
 	t3 = t2 + T3;
-	long T = T1+T2+T3;
+	
 	long max_ref = g_alpha * T1*T1/2 + w_max * T2 + g_alpha * T3*T3/2;
 	long ref_err = absl(Fi_total) - max_ref;
 	// ref_err = 0;
