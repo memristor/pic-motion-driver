@@ -491,9 +491,10 @@ static void setY(int tmp) {
 }
 
 static void setO(int tmp) {
-	positionL = -DEG_TO_INC_ANGLE(tmp) / 2;
+	encL = positionL = -DEG_TO_INC_ANGLE(tmp) / 2;
+	//positionR = (encR * c_wheel_r2) / c_wheel_r1;
 	positionR =  DEG_TO_INC_ANGLE(tmp) / 2;
-
+	encR = positionR * c_wheel_r1 / c_wheel_r2;
 	L = 0;
 	orientation = (long int)(positionR - positionL) % K1;
 
