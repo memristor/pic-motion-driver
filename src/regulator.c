@@ -8,6 +8,10 @@
 
 #undef dbg
 #define dbg(...)
+int blocked = 0;
+void block(int b) {
+	blocked = b;
+}
 
 long K1;
 float K2;
@@ -174,8 +178,9 @@ void regulator_interrupt(void) {
 	// read right encoder
 	vR = encoder_odometry_right_get_velocity();
 	encR += vR;
-	positionR = (double)encR * wheel_correction_coeff;
-	
+	//positionR = (double)encR * wheel_correction_coeff;
+	//positionR = (double)encR * wheel_correction_coeff;
+	positionR = (encR * c_wheel_r2) / c_wheel_r1;
 	ldouble positionR_2 = (encR * c_wheel_r2) / c_wheel_r1;
 	
 	
@@ -564,6 +569,7 @@ void start_command() {
 }
 
 void report_status() {
+	if(blocked) return;
 	if( c_status_change_report && current_status != last_status ) {
 		start_packet(MSG_STATUS_CHANGED);
 			put_byte(current_status);
@@ -772,7 +778,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	d_ref=L;
 	v0 = 0;
 	direction = (direction >= 0 ? 1 : -1);
-
+	block(1);
 	// turn to end point, find angle to turn
 	length = get_distance_to(Xd, Yd);
 	if(length > 1) {
@@ -783,7 +789,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		report_status();
 		return;
 	}
-
+	block(0);
 	v_end = c_vmax * /*end_speed*/0 / 256;
 	L_dist = MM_TO_INC(length);
 	
@@ -1039,10 +1045,7 @@ char turn(int angle) {
 	}
 	long T = T1+T2+T3;
 	if(T == 0) {
-		current_status = STATUS_ROTATING;
-		report_status();
 		current_status = STATUS_IDLE;
-		report_status();
 		return OK;
 	}
 	
