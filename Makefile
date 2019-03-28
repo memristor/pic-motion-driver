@@ -10,7 +10,7 @@ board = V2
 
 mplab=v4.15
 mplab=v5.15
-dev := vcan0
+dev := can0
 
 ##########################################
 src_base := 			\

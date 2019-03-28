@@ -122,10 +122,11 @@ int avg2=1000000;
 int vals[10]={1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000};
 int a_ptr=0;
 #endif
-
+#include <stdlib.h>
 static long speed_mode_error_accum1 = 0;
 static long speed_mode_error_accum2 = 0;
-
+static volatile ldouble prev_positionR = 0;
+int test = 0;
 void regulator_interrupt(void) {
 	
 	static float vL,vR;
@@ -181,14 +182,20 @@ void regulator_interrupt(void) {
 	//positionR = (double)encR * wheel_correction_coeff;
 	//positionR = (double)encR * wheel_correction_coeff;
 	positionR = (encR * c_wheel_r2) / c_wheel_r1;
-	ldouble positionR_2 = (encR * c_wheel_r2) / c_wheel_r1;
-	
+	//positionR = encR;
+	//ldouble positionR_2 = (encR * c_wheel_r2) / c_wheel_r1;
+	vR = (vR * c_wheel_r2) / c_wheel_r1;
+	//vR = positionR - prev_positionR;
+	//vR = vR * c_wheel_r1 / c_wheel_r2;
+	//prev_positionR = positionR;
+	//printf("%d %d\n", (int)vL, (int)vR);
 	
 	// speed
 	current_speed = (vL + vR) / 2; // v = s/t, current_speed [inc/ms]
 	int dbl = (vL + vR); // v = s/t, current_speed [inc/ms]
 	angular_speed = vR - vL; // angular speed [inc/ms]
 
+	test += dbl;
 	// position
 	L = (positionL + positionR) / 2;
 	orientation = angle_range_normalize_float(positionR - positionL, K1);
@@ -208,7 +215,7 @@ void regulator_interrupt(void) {
 	// translate increment position to millimeters
 	X = INC_TO_MM(Xlong);
 	Y = INC_TO_MM(Ylong);
-	
+	printf("%d %d : %d %d : %d\n", (int)L, (int)INC_TO_MM(L), (int)positionL, (int)positionR, test/2);
 	// error
 	error_distance = d_ref - L;
 	error_angular = angle_range_normalize_long(orientation - t_ref, K1);
@@ -403,12 +410,13 @@ void regulator_interrupt(void) {
 		
 			start_packet(MSG_DEBUG_ENCODER);
 				put_long(encL);
-				put_long(encR);
+				
 			end_packet();
 			
 			
 			start_packet(MSG_DEBUG4);
-				put_long(positionR - positionR_2);
+				put_long(encR);
+				//put_long(positionR - positionR_2);
 			end_packet();
 		})
 	}
@@ -1666,7 +1674,7 @@ void reset_stuck() {
 
 static void on_odometry_coefficients_changed() {
 	wheel_distance = c_wheel_distance;
-	R_wheel = c_wheel_r1;
+	R_wheel = (c_wheel_r1 + c_wheel_r2) / 2;
 	wheel_correction_coeff = (c_wheel_r2 / c_wheel_r1);
 	K1 = (long)(4.0*2048.0 * wheel_distance / (R_wheel / 2.0)); // for angles
 	K2 = (float)(4.0*2048.0 / (R_wheel * PI)); // for distance
