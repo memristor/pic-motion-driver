@@ -21,7 +21,8 @@ src_base := 			\
 	src/math.c          \
 	src/config.c        \
 	src/hw/can.c        \
-	src/hw/uart.c        \
+	src/hw/uart.c       \
+	src/hw/interrupt.c  \
 	
 	
 hw_src := 		  \
@@ -32,6 +33,7 @@ hw_src := 		  \
 	motor.c       \
 	timer.c       \
 	fuses.c  	  \
+	interrupt.c   \
 	
 
 .PHONY: sim config
