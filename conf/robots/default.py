@@ -69,10 +69,10 @@ conf_bytes={
 		'status_change_report': 1,
 		'keep_count': 100,
 		'tmr': 20,
-		'motor_connected': 1,
+		'motor_connected': 0,
 		'debug_encoders': 0,
 		'debug_errors': 0,
-		'regulator_mode': 0,
+		'regulator_mode': 1,
 		'motor_flip_left': 1,
 		'motor_flip_right': 1
 	}

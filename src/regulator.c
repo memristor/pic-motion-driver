@@ -307,6 +307,20 @@ void regulator_interrupt(void) {
 			break;
 		}
 		case REGULATOR_LINEAR: {
+			TRISBbits.TRISB0 = 1;
+			TRISBbits.TRISB1 = 1;
+			//LATBbits.LATB0 = 1;
+			//LATBbits.LATB1 = 1;
+			RUN_EACH_NTH_CYCLES(int, 50, {
+			start_packet('[');
+					put_byte((PORTBbits.RB1 << 1) | PORTBbits.RB0);
+				end_packet();
+			});
+			if (PORTBbits.RB0 == 1 || PORTBbits.RB1 == 1) {
+				
+				c_setpoint1 = positionL;
+				c_setpoint2 = positionR;
+			}
 			
 			static long target_speed = 0;
 			c_motor_connected = 0;
@@ -1681,9 +1695,15 @@ static void on_omega_change() {
 
 static void on_encoder1_change() {
 	positionL = c_encoder1;
+	c_setpoint1 = positionL;
+	encL = c_encoder1;
+	setpoint1_active = 0;
 }
 static void on_encoder2_change() {
 	positionR = c_encoder2;
+	c_setpoint2 = positionR;
+	encR = c_encoder2;
+	setpoint2_active = 0;
 }
 
 static void on_accel_changed() {

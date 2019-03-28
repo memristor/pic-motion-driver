@@ -83,7 +83,7 @@ static void init_pins(void) {
 	__builtin_write_OSCCONL(OSCCON & 0xDF);
 	
 	can_init_pins();
-	uart_init_pins();
+	//uart_init_pins();
 	encoder_init_pins();
 	external_interrupt_init_pins();
 
@@ -104,5 +104,5 @@ void hw_init(void) {
 	timer_init();
 	encoder_init();
 	can_init(CAN_ID, CAN_USE_EXTENDED_ID);
-	uart_init(UART_BAUD);
+	//uart_init(UART_BAUD);
 }
