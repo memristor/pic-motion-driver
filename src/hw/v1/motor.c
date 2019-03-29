@@ -124,7 +124,7 @@ void motor_left_set_power(int power) {
 	power = clip(left_motor_pwm-c_motor_rate_of_change, left_motor_pwm+c_motor_rate_of_change, power);
 	
 	left_motor_pwm = power;
-	motor_left_pwm(power);
+	motor_left_pwm(power * (int)c_motor_flip_left);
 }
 
 
@@ -133,7 +133,7 @@ void motor_right_set_power(int power) {
 	power = clip(right_motor_pwm-c_motor_rate_of_change, right_motor_pwm+c_motor_rate_of_change, power);
 
 	right_motor_pwm = power;
-	motor_right_pwm(power);
+	motor_right_pwm(power * (int)c_motor_flip_right);
 }
 
 

@@ -97,7 +97,7 @@ void hw_init(void) {
 	//INTCON1bits.NSTDIS = 1; // disable recursive interrupts?
 	port_init();
 	
-	#define CAN_ID 600
+	#define CAN_ID 601
 	#define CAN_USE_EXTENDED_ID 1
 	#define UART_BAUD 57600
 

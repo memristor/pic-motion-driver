@@ -126,6 +126,10 @@ int a_ptr=0;
 static long speed_mode_error_accum1 = 0;
 static long speed_mode_error_accum2 = 0;
 
+#define TASTER1 PORTBbits.RB0
+#define TASTER2 PORTBbits.RB1
+
+static volatile int init_stage = 0;
 void regulator_interrupt(void) {
 	
 	static float vL,vR;
@@ -268,7 +272,6 @@ void regulator_interrupt(void) {
 	//
 	
 	switch(c_regulator_mode) {
-		
 		case REGULATOR_POSITION: {
 		
 			long speed_error = error_distance - (-current_speed);
@@ -300,8 +303,8 @@ void regulator_interrupt(void) {
 			
 			if(c_motor_connected == 1) {
 				// ------ final PWM is result of superposition of 2 regulators --------
-				motor_left_set_power((regulator_distance + regulator_rotation) * (long)c_motor_flip_left);
-				motor_right_set_power((regulator_distance - regulator_rotation) * (long)c_motor_flip_right);
+				motor_left_set_power((regulator_distance + regulator_rotation));
+				motor_right_set_power((regulator_distance - regulator_rotation));
 			}
 			
 			break;
@@ -309,17 +312,22 @@ void regulator_interrupt(void) {
 		case REGULATOR_LINEAR: {
 			TRISBbits.TRISB0 = 1;
 			TRISBbits.TRISB1 = 1;
-			//LATBbits.LATB0 = 1;
-			//LATBbits.LATB1 = 1;
-			RUN_EACH_NTH_CYCLES(int, 50, {
-			start_packet('[');
-					put_byte((PORTBbits.RB1 << 1) | PORTBbits.RB0);
-				end_packet();
-			});
-			if (PORTBbits.RB0 == 1 || PORTBbits.RB1 == 1) {
+			
+			if(!init_stage) {
+				if (TASTER1 == 1 || TASTER2 == 1) {
+					c_setpoint1 = encL;
+					c_setpoint2 = encR;
+				}
 				
-				c_setpoint1 = positionL;
-				c_setpoint2 = positionR;
+				if (TASTER1 == 1) {
+					// desna => 1
+					c_setpoint1 = encL;
+				}
+				
+				if (TASTER2 == 1) {
+					// leva => 2
+					c_setpoint2 = encR;
+				}
 			}
 			
 			static long target_speed = 0;
@@ -332,7 +340,7 @@ void regulator_interrupt(void) {
 			c_setpoint1 = clipl(a,b, c_setpoint1);
 			
 			static long error_accum1 = 0;
-			error_distance = ((long)c_setpoint1 - positionL) * c_pid_lin1;
+			error_distance = ((long)c_setpoint1 - encL) * c_pid_lin1;
 			target_speed = clipl2(c_speed1, -error_distance);
 			error_accum1 += (target_speed - (-vL)) * c_pid_i1;
 
@@ -342,8 +350,8 @@ void regulator_interrupt(void) {
 					end_packet();
 					
 					setpoint1_active = 0;
-					positionL = clipl(a, b, positionL);
-					c_setpoint1 = positionL;
+					encL = clipl(a, b, encL);
+					c_setpoint1 = encL;
 					motor_left_set_power(0);
 					error_accum1 = 0;
 				} else if(error_distance != 0) {
@@ -361,7 +369,7 @@ void regulator_interrupt(void) {
 			
 			static long error_accum2 = 0;
 			
-			error_distance = ((long)c_setpoint2 - positionR) * c_pid_lin2;
+			error_distance = ((long)c_setpoint2 - encR) * c_pid_lin2;
 			target_speed = clipl2(c_speed2, -error_distance);
 			error_accum2 += (target_speed - (-vR)) * c_pid_i2;
 			
@@ -371,8 +379,8 @@ void regulator_interrupt(void) {
 					end_packet();
 
 					setpoint2_active = 0;
-					positionR = clipl(a, b, positionR);
-					c_setpoint2 = positionR;
+					encR = clipl(a, b, encR);
+					c_setpoint2 = encR;
 					motor_right_set_power(0);
 					error_accum2 = 0;
 				} else if(error_distance != 0) {
@@ -391,10 +399,27 @@ void regulator_interrupt(void) {
 			speed_mode_error_accum1 = clipl2(c_accum_clip, speed_mode_error_accum1 + (c_setpoint1 - vL) * c_pid_i1);
 			speed_mode_error_accum2 = clipl2(c_accum_clip, speed_mode_error_accum2 + (c_setpoint2 - vR) * c_pid_i1);
 			
-			motor_left_set_power(speed_mode_error_accum1 * (long)c_motor_flip_left);
-			motor_right_set_power(speed_mode_error_accum2 * (long)c_motor_flip_right);
+			motor_left_set_power(speed_mode_error_accum1);
+			motor_right_set_power(speed_mode_error_accum2);
 			
 			break;
+		}
+		case REGULATOR_OFF: {
+			TRISBbits.TRISB0 = 1;
+			TRISBbits.TRISB1 = 1;
+			setpoint1_active = setpoint2_active = 0;
+			//LATBbits.LATB0 = 1;
+			//LATBbits.LATB1 = 1;
+			motor_left_set_power(0);
+			motor_right_set_power(0);
+			c_setpoint1 = encL;
+			c_setpoint2 = encR;
+			
+			RUN_EACH_NTH_CYCLES(int, 50, {
+				start_packet('[');
+					put_byte((TASTER2 << 1) | TASTER1);
+				end_packet();
+			});
 		}
 	}
 	
@@ -420,7 +445,6 @@ void regulator_interrupt(void) {
 				put_long(encR);
 			end_packet();
 			
-			
 			start_packet(MSG_DEBUG4);
 				put_long(positionR - positionR_2);
 			end_packet();
@@ -445,9 +469,6 @@ void regulator_interrupt(void) {
 }
 
 void set_regulator_mode(int mode) {
-	if (mode < 0 || mode > REGULATOR_SPEED) {
-		mode = REGULATOR_POSITION;
-	}
 	c_regulator_mode = mode;
 	switch(mode) {
 		case REGULATOR_POSITION:
@@ -465,6 +486,191 @@ void set_regulator_mode(int mode) {
 			speed_mode_error_accum2=0;
 			break;
 	}
+}
+struct MoveCmdParams {
+	char active;
+	int x;
+	int y;
+	char direction;
+	int radius;
+};
+struct MoveCmdParams move_cmd_next;
+
+int m1,m2;
+/*
+	receive command while moving
+	return - OK (continue command) or BREAK/ERROR (break current command)
+*/
+static char get_command(void)
+{	
+	report_status();
+	
+	if(current_status == STATUS_STUCK) return ERROR;
+	Packet* pkt = try_read_packet();
+	
+	if(pkt != 0) {
+		switch(pkt->type) {           
+			case CMD_SEND_STATUS_AND_POSITION:
+				send_status_and_position();
+				break;
+
+			case CMD_HARD_STOP:
+				// stop and become idle
+				stop();
+				current_status = STATUS_IDLE;
+				__delay_ms(10);
+
+				return BREAK;
+
+			case CMD_SOFT_STOP:
+				// stop and turn off PWM
+				motor_turn_off();
+				current_status = STATUS_IDLE;
+				__delay_ms(10);
+
+				return BREAK;
+			
+			case CMD_SMOOTH_STOP:
+				smooth_stop();
+				return BREAK;
+				
+			case CMD_SET_CONFIG:
+				config_load(pkt->size, pkt->data);
+				break;
+				
+			case CMD_GET_CONFIG: {
+				int key = get_byte();
+				uint32_t val;
+				int exponent;
+				int sign;
+				config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
+				start_packet(CMD_GET_CONFIG);
+					put_word(val >> 16);
+					put_word(val);
+					put_byte(sign);
+					put_byte(exponent);
+				end_packet();
+				break;
+			}
+				
+			case CMD_KILL_REGULATOR:
+				// turn off regulator (PWM can active, but regulator not setting PWM), must be turned on
+				// explicitly with control_flags operator
+				c_distance_regulator = 0;
+				c_rotation_regulator = 0;
+				break;
+				
+			case CMD_MOVE_TO: {
+				int tmpX = get_word();
+				int tmpY = get_word();
+				char direction = get_byte();
+				int radius = get_word();
+				
+				move_cmd_next.active = 1;
+				move_cmd_next.x = tmpX;
+				move_cmd_next.y = tmpY;
+				move_cmd_next.direction = direction;
+				move_cmd_next.radius = radius;
+				break;
+			}
+			
+			case CMD_MOTOR:
+				m1 = get_word();
+				m2 = get_word();
+				break;
+				
+			case CMD_KEEP_SPEED:
+				m1 = (int16_t)get_word() * VMAX / 255;
+				m2 = (int16_t)get_word() * VMAX / 255;
+				break;
+			
+			case CMD_SET_SPEED:
+				set_speed(get_byte());
+				break;
+			
+			// break current command, status remains for 5ms
+			case CMD_BREAK:
+				keep_count = c_keep_count;
+				keep_speed = current_speed;
+				keep_rotation = angular_speed;
+				return BREAK;
+			
+			default:
+				// received unknown packet, ignore
+				return OK;
+		}
+	}
+
+	return OK;
+}
+
+
+void auto_init_lift() {
+	init_stage = 1;
+	int state1 = -1;
+	int state2 = -1;
+	float dist = 10000000;
+	
+	if(c_init_dir1 != 0) {
+		state1 = 0;
+		encL = 0;
+		c_encoder1_max = dist * c_init_dir1;
+		c_setpoint1 = dist * c_init_dir1;
+		setpoint1_active = 1;
+	}
+	
+	if(c_init_dir2 != 0) {
+		state2 = 0;
+		encR = 0;
+		c_encoder2_max = dist * c_init_dir2;
+		c_setpoint2 = dist * c_init_dir2;
+		setpoint2_active = 1;
+	}
+	
+	while(1) {
+		wait_for_regulator();
+		if(get_command() == ERROR) {
+			//c_regulator_mode = encL;
+			c_setpoint1 = encL;
+			c_setpoint2 = encR;
+			break;
+		}
+		
+		if (state1 == 0) {
+			if (TASTER1) {
+				state1=1;
+				setpoint1_active = 1;
+				encL = dist/2 * c_init_dir1;
+				c_setpoint1 = 0;
+			}
+		} else if(state1 == 1) {
+			if(TASTER1 == 0) {
+				state1 = 2;
+				encL = 0;
+				c_setpoint1 = 0;
+			}
+		}
+		
+		if (state2 == 0) {
+			if (TASTER2) {
+				state2=1;
+				setpoint2_active = 1;
+				encR = dist/2 * c_init_dir2;
+				c_setpoint2 = 0;
+			}
+		} else if(state2 == 1) {
+			if(TASTER2 == 0) {
+				state2 = 2;
+				encR = 0;
+				c_setpoint2 = 0;
+			}
+		}
+		
+		if((state1 == 2 || c_init_dir1 == 0) && (state2 == 2 || c_init_dir2 == 0) ) {
+			break;
+		}
+	}
+	init_stage = 0;
 }
 
 
@@ -595,124 +801,9 @@ void report_status() {
 	}
 }
 
-struct MoveCmdParams {
-	char active;
-	int x;
-	int y;
-	char direction;
-	int radius;
-};
 
-struct MoveCmdParams move_cmd_next;
 
-int m1,m2;
 
-/*
-	receive command while moving
-	return - OK (continue command) or BREAK/ERROR (break current command)
-*/
-static char get_command(void)
-{	
-	report_status();
-	
-	if(current_status == STATUS_STUCK) return ERROR;
-	Packet* pkt = try_read_packet();
-	
-	if(pkt != 0) {
-		switch(pkt->type) {           
-			case CMD_SEND_STATUS_AND_POSITION:
-				send_status_and_position();
-				break;
-
-			case CMD_HARD_STOP:
-				// stop and become idle
-				stop();
-				current_status = STATUS_IDLE;
-				__delay_ms(10);
-
-				return BREAK;
-
-			case CMD_SOFT_STOP:
-				// stop and turn off PWM
-				motor_turn_off();
-				current_status = STATUS_IDLE;
-				__delay_ms(10);
-
-				return BREAK;
-			
-			case CMD_SMOOTH_STOP:
-				smooth_stop();
-				return BREAK;
-				
-			case CMD_SET_CONFIG:
-				config_load(pkt->size, pkt->data);
-				break;
-				
-			case CMD_GET_CONFIG: {
-				int key = get_byte();
-				uint32_t val;
-				int exponent;
-				int sign;
-				config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
-				start_packet(CMD_GET_CONFIG);
-					put_word(val >> 16);
-					put_word(val);
-					put_byte(sign);
-					put_byte(exponent);
-				end_packet();
-				break;
-			}
-				
-			case CMD_KILL_REGULATOR:
-				// turn off regulator (PWM can active, but regulator not setting PWM), must be turned on
-				// explicitly with control_flags operator
-				c_distance_regulator = 0;
-				c_rotation_regulator = 0;
-				break;
-				
-			case CMD_MOVE_TO: {
-				int tmpX = get_word();
-				int tmpY = get_word();
-				char direction = get_byte();
-				int radius = get_word();
-				
-				move_cmd_next.active = 1;
-				move_cmd_next.x = tmpX;
-				move_cmd_next.y = tmpY;
-				move_cmd_next.direction = direction;
-				move_cmd_next.radius = radius;
-				break;
-			}
-			
-			case CMD_MOTOR:
-				m1 = get_word();
-				m2 = get_word();
-				break;
-				
-			case CMD_KEEP_SPEED:
-				m1 = (int16_t)get_word() * VMAX / 255;
-				m2 = (int16_t)get_word() * VMAX / 255;
-				break;
-			
-			case CMD_SET_SPEED:
-				set_speed(get_byte());
-				break;
-			
-			// break current command, status remains for 5ms
-			case CMD_BREAK:
-				keep_count = c_keep_count;
-				keep_speed = current_speed;
-				keep_rotation = angular_speed;
-				return BREAK;
-			
-			default:
-				// received unknown packet, ignore
-				return OK;
-		}
-	}
-
-	return OK;
-}
 
 
 void motor_const(int a, int b) {

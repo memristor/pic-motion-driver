@@ -41,7 +41,7 @@ void hw_init(void) {
 	encoder_init();
 	timer_init();
 	
-	#define CAN_ID 600
+	#define CAN_ID 0x258
 	#define CAN_USE_EXTENDED_ID 1
 	#define UART_BAUD 57600
 	

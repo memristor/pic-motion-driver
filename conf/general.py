@@ -27,8 +27,8 @@ commands = {
 	'forward_lazy': 'd',
 	'set_position_and_orientation': 'I',
 	'break': 'i',
-	'linear_optocoupler': '-'
-	
+	'linear_optocoupler': '-',
+	'auto_init_lift': '/'
 }
 
 messages = {

@@ -45,6 +45,10 @@ int main(void) {
 		reset_stuck();
 		switch(command)
 		{
+			case CMD_AUTO_INIT_LIFT:
+				auto_init_lift();
+				break;
+				
 			case CMD_SET_POSITION_AND_ORIENTATION:
 				// x [mm], y [mm], orientation
 				tmpX = get_word();

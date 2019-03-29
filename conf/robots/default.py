@@ -74,5 +74,7 @@ conf_bytes={
 		'debug_errors': 0,
 		'regulator_mode': 1,
 		'motor_flip_left': 1,
-		'motor_flip_right': 1
+		'motor_flip_right': 1,
+		'init_dir1': -1,
+		'init_dir2': 0
 	}

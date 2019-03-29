@@ -6,8 +6,8 @@ conf_floats={
 		
 		'setpoint1': 0,
 		'setpoint2': 0,
-		'speed1': 0.5,
-		'speed2': 0.5,
+		'speed1': 2,
+		'speed2': 2,
 		'pid_i1': 1.0,
 		'pid_i2': 1.0,
 		'pid_lin1': 0.5,
@@ -15,12 +15,15 @@ conf_floats={
 	}
 		
 conf_integers={
-		'send_status_interval': 0,
-	}
+	'send_status_interval':0,
+}
 
 conf_bytes={
+		'regulator_mode': 2,
 		'distance_regulator': 0,
 		'rotation_regulator': 0,
 		'motor_connected': 0,
 		'debug_encoders': 1,
+		'motor_flip_left': -1,
+		'motor_flip_right': 1
 	}

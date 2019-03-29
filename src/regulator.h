@@ -43,9 +43,10 @@
 #define OK 1
 //
 
-#define REGULATOR_POSITION 0
-#define REGULATOR_LINEAR 1
+#define REGULATOR_POSITION 1
+#define REGULATOR_LINEAR 2
 #define REGULATOR_SPEED 3
+#define REGULATOR_OFF 0
 
 // unit conversions
 #define MM_TO_DINC(x) 					(((long long)(x) << 1)*K2)
@@ -114,7 +115,7 @@ void force_status(enum State);
 
 void smooth_stop(void);
 void soft_stop(void);
-
+void auto_init_lift();
 void cmd_pwm_opto();
 
 void regulator_interrupt();
