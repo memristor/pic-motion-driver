@@ -220,7 +220,7 @@ void regulator_interrupt(void) {
 	// translate increment position to millimeters
 	X = INC_TO_MM(Xlong);
 	Y = INC_TO_MM(Ylong);
-	printf("%d %d : %d %d : %f | %f %f\n", (int)L, (int)INC_TO_MM(L), (int)positionL, (int)positionR, test/2, s_vL, s_vR);
+	// printf("%d %d : %d %d : %f | %f %f\n", (int)L, (int)INC_TO_MM(L), (int)positionL, (int)positionR, test/2, s_vL, s_vR);
 	// error
 	error_distance = d_ref - L;
 	error_angular = angle_range_normalize_long(orientation - t_ref, K1);
