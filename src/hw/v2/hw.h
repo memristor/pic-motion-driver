@@ -7,3 +7,4 @@
 #include "peripheral.h"
 #define BOOT 
 typedef long double ldouble;
+#define printf(...)

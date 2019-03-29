@@ -126,7 +126,7 @@ int a_ptr=0;
 static long speed_mode_error_accum1 = 0;
 static long speed_mode_error_accum2 = 0;
 static volatile ldouble prev_positionR = 0;
-int test = 0;
+float test = 0;
 void regulator_interrupt(void) {
 	
 	static float vL,vR;
@@ -187,12 +187,17 @@ void regulator_interrupt(void) {
 	vR = (vR * c_wheel_r2) / c_wheel_r1;
 	//vR = positionR - prev_positionR;
 	//vR = vR * c_wheel_r1 / c_wheel_r2;
-	//prev_positionR = positionR;
+	prev_positionR = positionR;
 	//printf("%d %d\n", (int)vL, (int)vR);
+	
+	static float s_vL = 0;
+	static float s_vR = 0;
+	s_vL += vL;
+	s_vR += vR;
 	
 	// speed
 	current_speed = (vL + vR) / 2; // v = s/t, current_speed [inc/ms]
-	int dbl = (vL + vR); // v = s/t, current_speed [inc/ms]
+	float dbl = (vL + vR); // v = s/t, current_speed [inc/ms]
 	angular_speed = vR - vL; // angular speed [inc/ms]
 
 	test += dbl;
@@ -215,7 +220,7 @@ void regulator_interrupt(void) {
 	// translate increment position to millimeters
 	X = INC_TO_MM(Xlong);
 	Y = INC_TO_MM(Ylong);
-	printf("%d %d : %d %d : %d\n", (int)L, (int)INC_TO_MM(L), (int)positionL, (int)positionR, test/2);
+	printf("%d %d : %d %d : %f | %f %f\n", (int)L, (int)INC_TO_MM(L), (int)positionL, (int)positionR, test/2, s_vL, s_vR);
 	// error
 	error_distance = d_ref - L;
 	error_angular = angle_range_normalize_long(orientation - t_ref, K1);
@@ -795,6 +800,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		// rotate_absolute_angle( RAD_TO_DEG_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + (direction < 0 ? 180 : 0) );
 	} else {
 		current_status = STATUS_ERROR;
+		block(0);
 		report_status();
 		return;
 	}
@@ -1674,7 +1680,8 @@ void reset_stuck() {
 
 static void on_odometry_coefficients_changed() {
 	wheel_distance = c_wheel_distance;
-	R_wheel = (c_wheel_r1 + c_wheel_r2) / 2;
+	//R_wheel = (c_wheel_r1 + c_wheel_r2) / 2;
+	R_wheel = c_wheel_r1;
 	wheel_correction_coeff = (c_wheel_r2 / c_wheel_r1);
 	K1 = (long)(4.0*2048.0 * wheel_distance / (R_wheel / 2.0)); // for angles
 	K2 = (float)(4.0*2048.0 / (R_wheel * PI)); // for distance

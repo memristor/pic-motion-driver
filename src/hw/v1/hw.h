@@ -6,5 +6,5 @@
 // #define INTERRUPT __attribute__((interrupt(auto_psv)))
 #define INTERRUPT __attribute__((interrupt(auto_psv)))
 #define DMA_SPACE __attribute__((space(dma)))
-
+#define printf(...)
 typedef long double ldouble;
