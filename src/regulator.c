@@ -604,6 +604,19 @@ static char get_command(void)
 	return OK;
 }
 
+void report_status() {
+	if(blocked) return;
+	if( c_status_change_report && current_status != last_status ) {
+		start_packet(MSG_STATUS_CHANGED);
+			put_byte(current_status);
+			put_word(X);
+			put_word(Y);
+			put_word(INC_TO_DEG_ANGLE(orientation));
+		end_packet();
+		last_status = current_status;
+	}
+}
+
 
 void auto_init_lift() {
 	init_stage = 1;
@@ -627,6 +640,8 @@ void auto_init_lift() {
 		setpoint2_active = 1;
 	}
 	
+	current_status = STATUS_MOVING;
+	report_status();
 	while(1) {
 		wait_for_regulator();
 		if(get_command() == ERROR) {
@@ -670,6 +685,7 @@ void auto_init_lift() {
 			break;
 		}
 	}
+	current_status = STATUS_IDLE;
 	init_stage = 0;
 }
 
@@ -788,18 +804,6 @@ void start_command() {
 	keep_count = 0;
 }
 
-void report_status() {
-	if(blocked) return;
-	if( c_status_change_report && current_status != last_status ) {
-		start_packet(MSG_STATUS_CHANGED);
-			put_byte(current_status);
-			put_word(X);
-			put_word(Y);
-			put_word(INC_TO_DEG_ANGLE(orientation));
-		end_packet();
-		last_status = current_status;
-	}
-}
 
 
 
