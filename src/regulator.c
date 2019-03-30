@@ -1060,6 +1060,8 @@ char turn(int angle) {
 	}
 	long T = T1+T2+T3;
 	if(T == 0) {
+		current_status = STATUS_ROTATING;
+		report_status();
 		current_status = STATUS_IDLE;
 		return OK;
 	}
@@ -1147,7 +1149,9 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 	direction =  direction > 0 ? 1 : -1;
 	R = get_distance_to(Xc, Yc);
 	if(R > 0) {
+		block(1);
 		rotate_absolute_angle( RAD_TO_DEG_ANGLE( atan2((int)Y-(int)Yc, (int)X-(int)Xc) ) + direction * s * 90);
+		block(0);
 	}
 	
 	float w_max, v_max, speed, accel;
