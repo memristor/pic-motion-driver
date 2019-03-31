@@ -198,11 +198,6 @@ int main(void) {
 				reset_stuck();
 				break;
 			
-			case CMD_LINEAR_OPTOCOUPLER:
-				cmd_pwm_opto();
-				break;
-			
-			
 			case 'E':
 				start_packet('E');
 				put_byte(pkt->size);
@@ -279,9 +274,6 @@ int main(void) {
 			}
 			case ']': {
 				uint32_t adr = get_long();
-				
-				
-				
 				// start_packet('[');
 				// end_packet();
 				
@@ -300,10 +292,8 @@ int main(void) {
 			*/
 
 			default:
-				force_status(STATUS_ERROR);
-		}
-		
-		report_status();
+				report_status(STATUS_ERROR);
+		}		
 	}
 
 	return 0;

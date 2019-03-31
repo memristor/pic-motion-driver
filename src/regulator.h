@@ -107,7 +107,7 @@ void set_rotation_speed(unsigned char max_speed, unsigned char max_accel);
 void set_position(int X, int Y, int orientation);
 void diff_drive(int x,int y, int fi);
 void send_status_and_position(void);
-void report_status(void);
+void report_status(int status);
 void on_status_changed(void);
 enum State get_status(void);
 void force_status(enum State);
@@ -116,7 +116,7 @@ void smooth_stop(void);
 void soft_stop(void);
 
 void cmd_pwm_opto();
-
+void reset_packet_count();
 void regulator_interrupt();
 #endif	/* REGULACIJA_H */
 
