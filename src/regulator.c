@@ -799,7 +799,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		rotate_absolute_angle( RAD_TO_DEG_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + (direction < 0 ? 180 : 0) );
 		// rotate_absolute_angle( RAD_TO_DEG_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + (direction < 0 ? 180 : 0) );
 	} else {
-		current_status = STATUS_ERROR;
+		current_status = STATUS_IDLE;
 		block(0);
 		report_status();
 		return;
@@ -865,7 +865,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		wait_for_regulator();
 		t = sys_time;
 		if(get_command() == ERROR) {
-			return;
+			break;
 		}
 		if(t <= t2) {// refresh angle reference
 			if(direction > 0) {
@@ -888,18 +888,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		}
 		d_ref = orig + direction * (ref + ref_err * (t-t0) / T);
 	}
-	
-	if (c_debug2) {
-		while(target_dref - d_ref > 0) {
-			wait_for_regulator();
-			t = sys_time;
-			if(get_command() == ERROR) {
-				return;
-			}
-		
-			d_ref += clipl2(1, target_dref - d_ref);
-		}
-	}
+
 	// while(
 	current_status = STATUS_IDLE;
 }
@@ -1063,6 +1052,7 @@ char turn(int angle) {
 		current_status = STATUS_ROTATING;
 		report_status();
 		current_status = STATUS_IDLE;
+		report_status();
 		return OK;
 	}
 	
@@ -1102,7 +1092,9 @@ char turn(int angle) {
 	while(t <= t3) {
 		wait_for_regulator();
 		t = sys_time;
-		if(get_command() == ERROR) return ERROR;
+		if(get_command() == ERROR) {
+			break;
+		}
 
 		if(t <= t1) {
 			// angle_ref = sign * T1*T1/2*g_alpha;
