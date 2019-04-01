@@ -567,7 +567,7 @@ void force_status(enum State newStatus) {
 void start_command() {
 	keep_count = 0;
 	if (blocked) return;
-	packet_count++;
+	//packet_count++;
 }
 
 void report_status(int new_status) {
@@ -975,7 +975,7 @@ void forward(int length) {
 			d_ref = D2 + sign * (v_ref * (t-t2) - g_accel * (t-t2) * (t-t2) / 2);
 		}
 	}
-	current_status = STATUS_IDLE;
+	report_status(STATUS_IDLE);
 }
 
 void rotate_absolute_angle(int angle) {
@@ -1320,7 +1320,7 @@ void diff_drive(int x, int y, int Fi) {
 		v_old = v;
 		w_old = w;
     }
-    current_status = STATUS_IDLE;
+    report_status(STATUS_IDLE);
 }
 
 /*
