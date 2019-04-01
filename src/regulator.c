@@ -534,7 +534,7 @@ void send_status_and_position(void) {
 		put_byte(current_status);
 		put_word(X);
 		put_word(Y);
-		put_word(INC_TO_DEG_ANGLE(orientation) | (packet_count << 9));
+		put_word((int16_t)INC_TO_DEG_ANGLE(orientation) | (packet_count << 9));
 	end_packet();
 }
 
