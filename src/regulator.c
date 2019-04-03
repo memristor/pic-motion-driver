@@ -1,6 +1,7 @@
 #include "config.h"
 #include "hw/motor.h"
 #include "hw/encoder.h"
+#include "hw/interrupt.h"
 
 #include "packet.h"
 #include "regulator.h"
@@ -142,6 +143,7 @@ void regulator_interrupt(void) {
 	
 	sys_time++;
 	
+	is_interrupt = 1;
 	
 #ifdef SIM
 	struct timespec now;
@@ -444,6 +446,7 @@ void regulator_interrupt(void) {
 			end_packet();
 		})
 	}
+	is_interrupt = 0;
 }
 
 void set_regulator_mode(int mode) {
