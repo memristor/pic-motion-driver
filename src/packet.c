@@ -105,7 +105,7 @@ Packet* try_read_packet(void) {
 	return rx_pkt;
 }
 
-#define NUM_TX_PACKETS 10
+#define NUM_TX_PACKETS 8
 
 static Packet tx_pkt[NUM_TX_PACKETS];
 static Packet* tx_pkt_stack[NUM_TX_PACKETS];
@@ -230,7 +230,7 @@ void end_packet(void) {
 			if(buf) {
 				int i;
 				can_pkt_set_default_id(buf);
-				uint8_t len = clip(1,8, pkt->size+1);
+				uint8_t len = clip(1, 8, pkt->size+1);
 				int8_t dlen = len;
 				uint8_t* d = can_pkt_get_data(buf, &dlen);
 				*d++ = pkt->type;

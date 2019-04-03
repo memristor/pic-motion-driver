@@ -160,15 +160,40 @@ uint16_t* BOOT can_get_packet() {
 	return can_buf[nbuf];
 }
 
+static int8_t is_buffer_free(int p) {
+	uint16_t* r = (uint16_t*)&C1TR01CON + (p/2);
+	if((p&1 == 0) && (*r & 0x0008) == 0) {
+		return 1;
+	} else if((p&1 == 1) && (*r & 0x0800) == 0) {
+		return 1;
+	}
+}
+
 uint16_t* can_get_free_tx_buffer() {
 	uint16_t* r = (uint16_t*)&C1TR01CON;
-	
+	static int last_pkt = 0;
 	int i=0;
+	/*
 	for(i=0; i < 4; i++, r++) {
+		int p = 0;
 		if((*r & 0x0008) == 0) {
-			return can_buf[i*2];
+			p = i*2;
 		} else if((*r & 0x0800) == 0) {
-			return can_buf[i*2+1];
+			p = i*2+1;
+		}
+		return can_buf[p];
+	}
+	*/
+	for(i=last_pkt+1; i < 8; i++) {
+		if(is_buffer_free(i)) {
+			last_pkt = i;
+			return can_buf[i];
+		}
+	}
+	for(i=0; i < last_pkt; i++) {
+		if(is_buffer_free(i)) {
+			last_pkt = i;
+			return can_buf[i];
 		}
 	}
 	return 0;

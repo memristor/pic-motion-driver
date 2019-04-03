@@ -1,5 +1,5 @@
-# TOOLCHAIN_PATH := /opt/microchip/xc16/v1.36/bin/
-TOOLCHAIN_PATH := /opt/microchip/xc16/v1.30/bin/
+TOOLCHAIN_PATH := /opt/microchip/xc16/v1.36/bin/
+#TOOLCHAIN_PATH := /opt/microchip/xc16/v1.30/bin/
 TOOLCHAIN := $(TOOLCHAIN_PATH)xc16-
 
 

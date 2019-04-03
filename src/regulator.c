@@ -490,41 +490,26 @@ void wait_for_regulator() {
 	}
 }
 
-static void setX(int tmp) {
-	Xlong = (long long)tmp * K2;
-	d_ref = L;
-	t_ref = orientation;
-	reset_stuck();
-	wait_for_regulator();
-}
 
-static void setY(int tmp) {
-	Ylong = (long long)tmp * K2;
-	d_ref = L;
-	t_ref = orientation;
-	reset_stuck();
-	wait_for_regulator();
-}
-
-static void setO(int tmp) {
-	encL = positionL = -DEG_TO_INC_ANGLE(tmp) / 2;
-	//positionR = (encR * c_wheel_r2) / c_wheel_r1;
-	positionR =  DEG_TO_INC_ANGLE(tmp) / 2;
+void set_position(int x, int y, int orient_angle) {
+	Xlong = (long long)x * K2;
+	Ylong = (long long)y * K2;
+	X = INC_TO_MM(Xlong);
+	Y = INC_TO_MM(Ylong);
+	
+	encL = positionL = -DEG_TO_INC_ANGLE(orient_angle) / 2;
+	
+	positionR =  DEG_TO_INC_ANGLE(orient_angle) / 2;
 	encR = positionR * c_wheel_r1 / c_wheel_r2;
+	
 	L = 0;
 	orientation = (long int)(positionR - positionL) % K1;
-
+	
 	d_ref = L;
 	t_ref = orientation;
+	
 	reset_stuck();
-
 	wait_for_regulator();
-}
-
-void set_position(int X, int Y, int orientation) {
-	setX(X);
-	setY(Y);
-	setO(orientation);
 	report_status(STATUS_IDLE);
 }
 
