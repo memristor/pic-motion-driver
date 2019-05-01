@@ -280,12 +280,6 @@ void regulator_interrupt(void) {
 	// REGULATOR
 	//*************************************************************************
 	
-	// TEST
-	// c_regulator_mode = 5;
-	// motor_left_set_power(encoder_odometry_left_get_count());
-	// motor_right_set_power(encoder_odometry_right_get_count());
-	//
-	
 	switch(c_regulator_mode) {
 		
 		case REGULATOR_POSITION: {
@@ -748,6 +742,7 @@ void speed_const(int a, int b) {
 }
 
 
+// goto
 // turn to point and move to it (Xd, Yd)
 void turn_and_go(int Xd, int Yd, char direction) {
 	motor_init();
@@ -770,7 +765,9 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	// turn to end point, find angle to turn
 	length = get_distance_to(Xd, Yd);
 	if(length > 1) {
-		rotate_absolute_angle( RAD_TO_DEG_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + (direction < 0 ? 180 : 0) );
+		rotate_absolute_angle_inc( 
+			RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + 
+			DEG_TO_INC_ANGLE(direction < 0 ? 180 : 0) );
 	} else {
 		block(0);
 		report_status(STATUS_IDLE);
@@ -782,11 +779,14 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	
 	float vmax;
 	long target_dref=0;
+	
 	if(c_debug) {
 		start_packet(MSG_DEBUG);
 			put_long(L_dist);
 		end_packet();
 	}
+	
+	if (g_accel == 0) return;
 	// calculate phase durations
 	T1 = (c_vmax - v0) / g_accel + 0.5;
 	L0 = L;
@@ -821,13 +821,17 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	t3 = t2 + T3;
 	
 	long T = T1+T2+T3;
-	
+	if(T <= 10) {
+		report_status(STATUS_IDLE);
+		return;
+	}
 	
 	D0 = d_ref;
 	long orig = d_ref;
 	long ref = 0;
 	long ref_max = g_accel * T1*T1/2 + vmax * T2 + g_accel * T3 * T3 / 2;
 	long ref_err = (L_dist - ref_max) ;
+	ref_err = 0;
 	// ref_err = 0;
 	
 	while(t <= t3) {
@@ -967,25 +971,29 @@ void forward(int length) {
 }
 
 void rotate_absolute_angle(int angle) {
-	int tmp = angle - INC_TO_DEG_ANGLE(orientation);
-	tmp = deg_angle_range_normalize(tmp);
-	turn(tmp);
+	rotate_absolute_angle_inc(DEG_TO_INC_ANGLE(angle));
+}
+
+void rotate_absolute_angle_inc(int32_t angle) {
+	turn_inc(angle_range_normalize_long(angle - orientation, K1));
 }
 
 char turn(int angle) {
+	return turn_inc(DEG_TO_INC_ANGLE(angle));
+}
+
+char turn_inc(int32_t angle) {
 	long t, t0, t1, t2, t3;
-	long T1, T2, T3;
-	long Fi_total, Fi1;
+	long T1, T2, T3, Fi_total, Fi1;
 	double angle_ref, w_ref = 0;
 	char sign;
-		
+
 	motor_init();
 	start_command();
 	report_status(STATUS_ROTATING);
 	
 	sign = angle >= 0 ? 1 : -1;
-
-	Fi_total = DEG_TO_INC_ANGLE(angle);
+	Fi_total = angle;
 	
 	float w_max;
 	w_max = c_omega;
@@ -1011,6 +1019,7 @@ char turn(int angle) {
 	
 	long s = g_alpha * T1*T1/2 * 2 + T2 * w_max;
 	long target_dref=0;
+	
 	if(c_debug) {
 		start_packet(MSG_DEBUG);
 			put_word(Fi_total);
