@@ -774,7 +774,6 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	L_dist = MM_TO_INC(length);
 	
 	float vmax;
-	long target_dref = 0;
 	
 	if(c_debug) {
 		start_packet(MSG_DEBUG);
@@ -782,33 +781,33 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		end_packet();
 	}
 	
-	if (g_accel == 0) return;
+	float accel = g_accel;
+	if (accel == 0) return;
 	// calculate phase durations
-	T1 = maxf(0, c_vmax - v0) / g_accel + 0.5;
+	T1 = maxf(0, c_vmax - v0) / accel + 0.5;
 	L0 = L;
-	L1 = current_speed * T1 + g_accel * T1 * T1 / 2;
+	L1 = current_speed * T1 + accel * T1 * T1 / 2;
 
-	T3 = maxf(0, c_vmax - v_end) / g_accel + 0.5;
-	L3 = c_vmax * T3 - g_accel * T3 * T3 / 2;
+	T3 = maxf(0, c_vmax - v_end) / accel + 0.5;
+	L3 = c_vmax * T3 - accel * T3 * T3 / 2;
 
 	if( (L1 + L3) < L_dist ) {
 		// can reach c_vmax
 		L2 = L_dist - L1 - L3;
 		// T2 = ceil(L2 / c_vmax);
 		T2 = L2 / c_vmax + 0.5;
-		target_dref = d_ref + direction * L_dist;
 		vmax = c_vmax;
 	} else {
 		// can't reach c_vmax
 		T2 = 0;
-		v_peak = sqrt(g_accel * L_dist + (current_speed * current_speed + v_end * v_end) / 2);
+		v_peak = sqrt(accel * L_dist + (current_speed * current_speed + v_end * v_end) / 2);
 		if( (v_peak < current_speed) || (v_peak < v_end) ) {
 			report_status(STATUS_ERROR);
 			return; //mission impossible
 		}
 		vmax = v_peak;
-		T1 = (v_peak - current_speed) / g_accel + 0.5;
-		T3 = (v_peak - v_end) / g_accel + 0.5;
+		T1 = (v_peak - current_speed) / accel + 0.5;
+		T3 = (v_peak - v_end) / accel + 0.5;
 	}
 
 	t = t0 = sys_time;
@@ -825,7 +824,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	D0 = d_ref;
 	long orig = d_ref;
 	long ref = 0;
-	long ref_max = g_accel * T1*T1/2 + vmax * T2 + g_accel * T3 * T3 / 2;
+	long ref_max = accel * T1*T1/2 + vmax * T2 + accel * T3 * T3 / 2;
 	long ref_err = (L_dist - ref_max) ;
 	// ref_err = 0;
 	
@@ -844,11 +843,11 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		}
 		
 		if(t <= t1) {// speeding up phase
-			ref = g_accel * (t-t0)*(t-t0)/2;
+			ref = accel * (t-t0)*(t-t0)/2;
 		} else if(t <= t2) {// constant speed phase
-			ref = (g_accel * T1*T1/2) + vmax * (t-t1);
+			ref = (accel * T1*T1/2) + vmax * (t-t1);
 		} else if(t <= t3) {// slowing down phase
-			ref = (g_accel * T1*T1/2) + vmax * T2 + (vmax * (t-t2) - g_accel * (t-t2) * (t-t2) / 2);
+			ref = (accel * T1*T1/2) + vmax * T2 + (vmax * (t-t2) - accel * (t-t2) * (t-t2) / 2);
 		}
 		d_ref = orig + direction * (ref + ref_err * (t-t0) / T);
 	}
@@ -977,16 +976,17 @@ char turn_inc(int32_t angle) {
 	Fi_total = angle;
 	
 	float w_max;
+	float alpha = g_alpha;
 	w_max = c_omega;
-	T1 = T3 = c_omega / g_alpha;
-	Fi1 = g_alpha * T1 * T1 / 2;
+	T1 = T3 = c_omega / alpha;
+	Fi1 = alpha * T1 * T1 / 2;
 	if(Fi1 > (sign * Fi_total / 2)) {
 		// triangle profile (speeds up to some speed and then slows down to 0)
 		Fi1 = sign  * Fi_total / 2;
-		T1 = T3 = sqrt(2 * Fi1 / g_alpha) + 0.5;
+		T1 = T3 = sqrt(2 * Fi1 / alpha) + 0.5;
 		// a * T^2/2 = Fi
 		T2 = 0;
-		w_max = g_alpha * T1;
+		w_max = alpha * T1;
 	} else {
 		// trapezoid profile of speed graph (similar like triangle profile except there is period of constant speed in between)
 		T2 = (sign * Fi_total - 2 * Fi1) / c_omega + 0.5;
@@ -998,8 +998,7 @@ char turn_inc(int32_t angle) {
 		return OK;
 	}
 	
-	long s = g_alpha * T1*T1/2 * 2 + T2 * w_max;
-	long target_dref=0;
+	long s = alpha * T1*T1/2 * 2 + T2 * w_max;
 	
 	if(c_debug) {
 		start_packet(MSG_DEBUG);
@@ -1020,7 +1019,7 @@ char turn_inc(int32_t angle) {
 	t2 = t1 + T2;
 	t3 = t2 + T3;
 	
-	long max_ref = g_alpha * T1*T1/2 + w_max * T2 + g_alpha * T3*T3/2;
+	long max_ref = alpha * T1*T1/2 + w_max * T2 + alpha * T3*T3/2;
 	long ref_err = absl(Fi_total) - max_ref;
 	// ref_err = 0;
 	dbg(printf("T BEF: %lf\n", angle_ref);)
@@ -1038,11 +1037,11 @@ char turn_inc(int32_t angle) {
 		}
 
 		if(t <= t1) {
-			angle_ref = g_alpha * (t-t0)*(t-t0)/2;
+			angle_ref = alpha * (t-t0)*(t-t0)/2;
 		} else if(t <= t2) {
-			angle_ref = g_alpha * T1*T1/2 + w_max * (t-t1);
+			angle_ref = alpha * T1*T1/2 + w_max * (t-t1);
 		} else if(t <= t3) {
-			angle_ref = g_alpha * T1*T1/2 + w_max * T2+ (w_max*(t-t2) - g_alpha * (t-t2)*(t-t2)/2);
+			angle_ref = alpha * T1*T1/2 + w_max * T2+ (w_max*(t-t2) - alpha * (t-t2)*(t-t2)/2);
 		}
 		t_ref = orig + sign * (angle_ref + ref_err * (t-t0)/T);
 	}
