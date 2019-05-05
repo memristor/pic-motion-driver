@@ -49,7 +49,10 @@ static volatile float orientation = 0;
 static volatile ldouble L = 0; // total distance
 static volatile long t_ref = 0, d_ref = 0;
 static volatile long prev_rotation_error = 0, prev_distance_error = 0;
-static volatile long keep_rotation = 0, keep_speed = 0, keep_count = 0;
+static volatile int16_t keep_count = 0;
+
+static float keep_rotation_acc = 0, keep_speed_acc = 0;
+static float keep_rotation = 0, keep_speed = 0;
 // -------------------------------
 
 // stuck detection in regulator
@@ -62,7 +65,17 @@ static int d_ref_fail_count = 0;
 
 static enum State current_status = STATUS_IDLE;
 static enum State last_status = STATUS_IDLE;
-// ---------------- HELPER FUNCTIONS ------------
+
+struct filter_t filter_speed1;
+struct filter_t filter_speed2;
+int16_t filter_speed_array1[5]={0};
+int16_t filter_speed_array2[5]={0};
+int16_t filter_speed_coef[5] = {1,1,1,1,1};
+
+float filt_speed = 0;
+float filt_ang_speed = 0;
+
+// ============== HELPER FUNCTIONS =============
 
 long inc_angle_diff(long a, long b) {
 	return angle_range_normalize_long(a - b, K1);
@@ -72,7 +85,7 @@ float get_distance_to(long x, long y) {
 	return sqrt((x-X)*(x-X) + (y-Y)*(y-Y));
 }
 
-// ------------------------------------------
+// ==========================================
 
 
 // --------------------------------------------------------------
@@ -106,11 +119,8 @@ void INTERRUPT _INT2Interrupt(void) {
 }
 */
 
-struct regulator_t {
-	int last_dist;
-	int osc_count;
-	int speed_error_accum;
-};
+
+
 
 #ifdef SIM
 #include <time.h>
@@ -128,7 +138,6 @@ int a_ptr=0;
 static long speed_mode_error_accum1 = 0;
 static long speed_mode_error_accum2 = 0;
 static volatile ldouble prev_positionR = 0;
-float test = 0;
 void regulator_interrupt(void) {
 	
 	static float vL,vR;
@@ -164,8 +173,22 @@ void regulator_interrupt(void) {
 
 	// keep speed for some time if interrupted
 	if(keep_count > 0) {
-		t_ref += keep_rotation;
-		d_ref += keep_speed;
+		
+		keep_rotation_acc += keep_rotation;
+		keep_speed_acc += keep_speed;
+		
+		int16_t k_rot = keep_rotation_acc;
+		int16_t k_speed = keep_speed_acc;
+		
+		t_ref += k_rot;
+		d_ref += k_speed;
+		
+		keep_rotation_acc -= k_rot;
+		keep_speed_acc -= k_speed;
+		
+		// t_ref += keep_rotation;
+		// d_ref += keep_speed;
+		
 		// trapezoid reduction
 		if(--keep_count == 0) {
 			report_status(STATUS_IDLE);
@@ -199,7 +222,10 @@ void regulator_interrupt(void) {
 	float dbl = (vL + vR); // v = s/t, current_speed [inc/ms]
 	angular_speed = vR - vL; // angular speed [inc/ms]
 
-	test += dbl;
+	// filtered speeds
+	filt_speed = filter_in(&filter_speed1, current_speed);
+	filt_ang_speed = filter_in(&filter_speed2, angular_speed);
+	
 	// position
 	L = (positionL + positionR) / 2;
 	orientation = angle_range_normalize_float(positionR - positionL, K1);
@@ -219,8 +245,10 @@ void regulator_interrupt(void) {
 	// translate increment position to millimeters
 	X = INC_TO_MM(Xlong);
 	Y = INC_TO_MM(Ylong);
-	// printf("%d %d : %d %d : %f | %f %f\n", (int)L, (int)INC_TO_MM(L), (int)positionL, (int)positionR, test/2, s_vL, s_vR);
-	// error
+	
+	// printf("%d %d : %d %d : %f | %f %f\n", (int)L, (int)INC_TO_MM(L), (int)positionL, (int)positionR, s_vL, s_vR);
+	
+	// errors
 	error_distance = d_ref - L;
 	error_angular = angle_range_normalize_long(orientation - t_ref, K1);
 
@@ -482,8 +510,14 @@ unsigned long wait_for_regulator() {
 
 void keep_moving() {
 	keep_count = c_keep_count;
-	keep_speed = current_speed;
-	keep_rotation = angular_speed;
+	keep_rotation_acc = keep_speed_acc = 0;
+	
+	// keep_speed = current_speed;
+	// keep_rotation = angular_speed;
+	
+	printf("keep moving: %f:%f  %f:%f\n", current_speed, filt_speed, angular_speed, filt_ang_speed);
+	keep_speed = filt_speed;
+	keep_rotation = filt_ang_speed;
 }
 
 void set_position(int x, int y, int orient_angle) {
@@ -552,6 +586,7 @@ void start_command() {
 }
 
 void end_command() {
+	if (blocked) return;
 	if (c_end_speed > 0) {
 		keep_moving();
 	}
@@ -956,7 +991,8 @@ void rotate_absolute_angle(int angle) {
 }
 
 void rotate_absolute_angle_inc(int32_t angle) {
-	turn_inc(angle_range_normalize_long(angle - orientation, K1));
+	// turn_inc(angle_range_normalize_long(angle - orientation, K1));
+	turn_inc(inc_angle_diff(angle, orientation));
 }
 
 char turn(int angle) {
@@ -1280,7 +1316,8 @@ void diff_drive(int x, int y, int Fi) {
 		v_max = c_vmax;
 		w_max = c_omega;
 		
-		dbg(printf("w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
+		dbg(printf("w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", 
+			w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
 		
 		float ratio;
 		if (absd(v) > v_max) {
@@ -1304,7 +1341,8 @@ void diff_drive(int x, int y, int Fi) {
 		w = clipd_margin(w_old, g_alpha, w);
 		v = clipd_margin(v_old, g_accel, v);
 		
-		dbg(printf("- w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
+		dbg(printf("- w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", 
+			w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
 		t_ref += w;
 		d_ref += v;
 		v_old = v;
@@ -1530,6 +1568,7 @@ void move_to(long x, long y, int radius, char direction) {
 
 // hard stop
 void stop(void) {
+	start_command();
 	d_ref = L;
 	t_ref = orientation;
 
@@ -1545,6 +1584,9 @@ void stop(void) {
 
 // regulated soft stop
 void smooth_stop(void) {
+	start_command();
+	report_status(STATUS_MOVING);
+	printf("smooth stop");
 	float speed = current_speed;
 	float ang_speed = angular_speed;
 	while(speed != 0.0f || ang_speed != 0.0f) {
@@ -1569,6 +1611,7 @@ void smooth_stop(void) {
 
 // unregulated soft stop
 void soft_stop(void) {
+	start_command();
 	motor_turn_off();
 	report_status(STATUS_IDLE);
 }
@@ -1662,6 +1705,9 @@ void regulator_init(void) {
 	
 	c_accel = 0;
 	c_alpha = 0;
+	
+	filter_init(&filter_speed1, 5, filter_speed_array1, filter_speed_coef);
+	filter_init(&filter_speed2, 5, filter_speed_array2, filter_speed_coef);
 	
 	config_on_change(CONF_WHEEL_R1, on_odometry_coefficients_changed);
 	config_on_change(CONF_WHEEL_R2, on_odometry_coefficients_changed);

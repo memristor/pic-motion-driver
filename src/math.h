@@ -49,4 +49,12 @@ proc_def(def_min_decl, min);
 proc_def(def_max_decl, max);
 
 
+struct filter_t {
+	int16_t *array;
+	int8_t len;
+	int16_t *coef;
+	int16_t div;
+};
+void filter_init(struct filter_t* filter, int8_t len, int16_t *array, int16_t* coef);
+float filter_in(struct filter_t* filter, int16_t input);
 #endif

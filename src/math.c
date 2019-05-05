@@ -134,6 +134,29 @@ float max3f(float a, float b, float c) {
 
 
 
+void filter_init(struct filter_t* filter, int8_t len, int16_t *array, int16_t* coef) {
+	int i,sum=0;
+	for(i=0; i < len; i++) {
+		sum += coef[i];
+	}
+	filter->coef = coef;
+	filter->len = len;
+	filter->array = array;
+	filter->div = sum;
+}
+float filter_in(struct filter_t* filter, int16_t input) {
+	int i;
+	float ret=0;
+	for(i=0; i < filter->len-1; i++) {
+		filter->array[i] = filter->array[i+1];
+	}
+	filter->array[filter->len-1] = input;
+	for(i=0; i < filter->len; i++) {
+		ret += filter->array[i] * filter->coef[i];
+	}
+	return ret / filter->div;
+}
+
 
 //------------------------------------------------------------------------------
 
