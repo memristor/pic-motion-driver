@@ -183,7 +183,11 @@ int main(void) {
 			case CMD_HARD_STOP:
 				stop();
 				break;
-
+				
+			case CMD_SMOOTH_STOP:
+				smooth_stop();
+				break;
+				
 			case CMD_SOFT_STOP:
 				// stop and kill PWM
 				soft_stop();

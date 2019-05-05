@@ -704,6 +704,7 @@ static char get_command(void)
 			
 			// break current command, status remains for 5ms
 			case CMD_BREAK:
+				printf("pkt: i (break)\n");
 				keep_moving();
 				return BREAK;
 			
@@ -864,7 +865,6 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	// ref_err = 0;
 	
 	while(t <= t3) {
-		wait_for_regulator();
 		t = sys_time;
 		if(get_command() == ERROR) {
 			break;
@@ -885,6 +885,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 			ref = (accel * T1*T1/2) + vmax * T2 + (vmax * (t-t2) - accel * (t-t2) * (t-t2) / 2);
 		}
 		d_ref = orig + direction * (ref + ref_err * (t-t0) / T);
+		wait_for_regulator();
 	}
 
 	end_command();
@@ -901,11 +902,11 @@ void forward_lazy(int length, uint8_t speed) {
 	c_setpoint1 = add_inc;
 	c_setpoint2 = add_inc;
 	while(end-L > 0) {
-		wait_for_regulator();
 		if(get_command() == ERROR) {
 			break;
 		}
 		d_ref = L;
+		wait_for_regulator();
 	}
 	d_ref = L;
 	set_regulator_mode(REGULATOR_POSITION);
@@ -917,8 +918,8 @@ void forward(int length) {
 	long t, t0, t1, t2, t3;
 	long L_dist, L0, L1, L2, L3;
 	long D0, D1, D2, T1, T2, T3;
-	float v_vrh, v_end, v0, v_ref;
-	char sign;
+	float v_peak, v_end, v0, v_ref;
+	char s;
 	
 	start_command();
 	report_status(STATUS_MOVING);
@@ -926,46 +927,45 @@ void forward(int length) {
 	d_ref = L;
 	v_ref = current_speed;
 	v0 = v_ref;
-	// v_end = c_vmax * /*end_speed*/0 / 256;
 	v_end = VMAX * c_end_speed / 256;
-	sign = (length >= 0) ? 1 : -1;
-	
+	s = sign(length);
+	float accel = g_accel;
+	float vmax = c_vmax;
 	L_dist = MM_TO_INC(length);
 
-	T1 = maxf(0, c_vmax - v_ref) / g_accel;
+	T1 = maxf(0, vmax - v_ref) / accel;
 	L0 = L;
-	L1 = v_ref * T1 + g_accel * T1 * (T1 / 2);
+	L1 = v_ref * T1 + accel * T1 * T1 / 2;
 
-	T3 = maxf(0, c_vmax - v_end) / g_accel;
-	L3 = c_vmax * T3 - g_accel * T3 * (T3 / 2);
+	T3 = maxf(0, vmax - v_end) / accel;
+	L3 = vmax * T3 - accel * T3 * T3 / 2;
 	
-	if((L1 + L3) < (long)sign * L_dist) {
+	if((L1 + L3) < (long)s * L_dist) {
 		// can reach
-		L2 = sign * L_dist - L1 - L3;
-		T2 = L2 / c_vmax;
+		L2 = s * L_dist - L1 - L3;
+		T2 = L2 / vmax;
 	} else {
-		// can't reach c_vmax
+		// can't reach vmax
 		T2 = 0;
-		v_vrh = sqrt(g_accel * sign * L_dist + (v_ref * v_ref + v_end * v_end) / 2);
-		if( (v_vrh < v_ref) || (v_vrh < v_end) ) {
+		v_peak = sqrt(accel * s * L_dist + (v_ref * v_ref + v_end * v_end) / 2);
+		if( (v_peak < v_ref) || (v_peak < v_end) ) {
 			report_status(STATUS_ERROR);
 			// printf("ERROR\n");
 			return; //mission impossible
 		}
 
-		T1 = (v_vrh - v_ref) / g_accel;
-		T3 = (v_vrh - v_end) / g_accel;
+		T1 = (v_peak - v_ref) / accel;
+		T3 = (v_peak - v_end) / accel;
 	}
-
+	
 	t = t0 = sys_time;
 	t1 = t0 + T1;
 	t2 = t1 + T2;
 	t3 = t2 + T3;
 	D0 = d_ref;
 	// printf("forw times: %d,%d,%d total: %d %f\n", T1,T2,T3, T1+T2+T3, v_ref);
-	
-	while(t < t3)  {
-		wait_for_regulator();
+	while(t < t3) {
+		
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
@@ -973,15 +973,16 @@ void forward(int length) {
 		}
 		
 		if(t <= t1) {
-			v_ref = v0 + g_accel * (t-t0);
-			D1 = D2 = d_ref = D0 + sign * (v0 * (t-t0) + g_accel * (t-t0)*(t-t0)/2);
+			v_ref = v0 + accel * (t-t0);
+			D1 = D2 = d_ref = D0 + (long)s * (v0 * (t-t0) + accel * (t-t0)*(t-t0)/2);
 		} else if(t <= t2) {
-			v_ref = c_vmax;
-			D2 = d_ref = D1 + sign * c_vmax * (t-t1);
+			v_ref = vmax;
+			D2 = d_ref = D1 + (long)s * vmax * (t-t1);
 		} else if(t <= t3) {
-			// v_ref = c_vmax - g_accel * (t-t2);
-			d_ref = D2 + sign * (v_ref * (t-t2) - g_accel * (t-t2) * (t-t2) / 2);
+			// v_ref = vmax - accel * (t-t2);
+			d_ref = D2 + (long)s * (v_ref * (t-t2) - accel * (t-t2) * (t-t2) / 2);
 		}
+		wait_for_regulator();
 	}
 	end_command();
 }
@@ -991,7 +992,6 @@ void rotate_absolute_angle(int angle) {
 }
 
 void rotate_absolute_angle_inc(int32_t angle) {
-	// turn_inc(angle_range_normalize_long(angle - orientation, K1));
 	turn_inc(inc_angle_diff(angle, orientation));
 }
 
@@ -1066,7 +1066,6 @@ char turn_inc(int32_t angle) {
 	int c1,c2,c3;
 	w_ref = 0;
 	while(t <= t3) {
-		wait_for_regulator();
 		t = sys_time;
 		if(get_command() == ERROR) {
 			break;
@@ -1080,6 +1079,7 @@ char turn_inc(int32_t angle) {
 			angle_ref = alpha * T1*T1/2 + w_max * T2+ (w_max*(t-t2) - alpha * (t-t2)*(t-t2)/2);
 		}
 		t_ref = orig + sign * (angle_ref + ref_err * (t-t0)/T);
+		wait_for_regulator();
 	}
 	dbg(printf("T AFT: %lf\n", angle_ref);)
 	end_command();
@@ -1147,7 +1147,6 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 	// printf("T BEF: %f\n", angle_ref);
 	// printf("T PLAN: %ld => %ld\n", Fi_total, (long)(angle_ref+Fi_total));
 	while(t <= t3) {
-		wait_for_regulator();
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
@@ -1169,6 +1168,8 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 		dist_ref += direction * absd(v_ref);
 		t_ref = angle_ref;
 		d_ref = dist_ref;
+		
+		wait_for_regulator();
 	}
 	// printf("T AFT: %f %ld\n", angle_ref, t_ref);
 	end_command();
@@ -1239,7 +1240,6 @@ void arc_relative(int R, int Fi) {
 	dist_ref = d_ref;
 	
 	while(t <= t3) {
-		wait_for_regulator();
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
@@ -1261,6 +1261,8 @@ void arc_relative(int R, int Fi) {
 		dist_ref += sign(Fi) * absd(v_ref);
 		t_ref = angle_ref;
 		d_ref = dist_ref;
+		
+		wait_for_regulator();
 	}
 	end_command();
 }
@@ -1278,7 +1280,6 @@ void diff_drive(int x, int y, int Fi) {
 	report_status(STATUS_MOVING);
 	
 	while(1) {
-		wait_for_regulator();
 		
 		if(get_command() == ERROR) {
 			break;
@@ -1347,6 +1348,8 @@ void diff_drive(int x, int y, int Fi) {
 		d_ref += v;
 		v_old = v;
 		w_old = w;
+		
+		wait_for_regulator();
     }
     end_command();
 }
@@ -1586,10 +1589,10 @@ void stop(void) {
 void smooth_stop(void) {
 	start_command();
 	report_status(STATUS_MOVING);
-	printf("smooth stop");
 	float speed = current_speed;
 	float ang_speed = angular_speed;
 	while(speed != 0.0f || ang_speed != 0.0f) {
+		
 		if(absf(speed) > g_accel) {
 			speed -= signf(speed) * g_accel;
 		} else {
@@ -1597,10 +1600,11 @@ void smooth_stop(void) {
 		}
 		
 		if(absf(ang_speed) > g_alpha) {
-			ang_speed -= dfval(ang_speed, g_alpha);
+			ang_speed -= signf(ang_speed) * g_alpha;
 		} else {
 			ang_speed = 0.0f;
 		}
+		
 		d_ref += speed;
 		t_ref += ang_speed;
 		
