@@ -39,7 +39,7 @@ int main(void) {
 		Packet* pkt = pkt=try_read_packet();
 		if(!pkt) continue;
 		#ifdef SIM
-		printf("got pkt: %c (%x)\n", pkt->type, pkt->type);
+		printf("pkt: %c (%x)\n", pkt->type, pkt->type);
 		#endif
 		command = pkt->type;
 		reset_stuck();

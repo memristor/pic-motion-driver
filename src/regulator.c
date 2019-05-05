@@ -166,6 +166,7 @@ void regulator_interrupt(void) {
 	if(keep_count > 0) {
 		t_ref += keep_rotation;
 		d_ref += keep_speed;
+		// trapezoid reduction
 		if(--keep_count == 0) {
 			report_status(STATUS_IDLE);
 		}
@@ -182,14 +183,9 @@ void regulator_interrupt(void) {
 	// read right encoder
 	vR = encoder_odometry_right_get_velocity();
 	encR += vR;
-	//positionR = (double)encR * wheel_correction_coeff;
-	//positionR = (double)encR * wheel_correction_coeff;
 	positionR = (encR * c_wheel_r2) / c_wheel_r1;
 	//positionR = encR;
-	//ldouble positionR_2 = (encR * c_wheel_r2) / c_wheel_r1;
 	vR = (vR * c_wheel_r2) / c_wheel_r1;
-	//vR = positionR - prev_positionR;
-	//vR = vR * c_wheel_r1 / c_wheel_r2;
 	prev_positionR = positionR;
 	//printf("%d %d\n", (int)vL, (int)vR);
 	
@@ -251,7 +247,8 @@ void regulator_interrupt(void) {
 			report_status(STATUS_STUCK);
 		}
 		
-		if(absl(error_angular) > DEG_TO_INC_ANGLE(1) && (signl(error_angular) != signl(-angular_speed) || absl(angular_speed) < DEG_TO_INC_ANGLE(0.1))) {
+		if(absl(error_angular) > DEG_TO_INC_ANGLE(1) && (signl(error_angular) != signl(-angular_speed) || 
+			absl(angular_speed) < DEG_TO_INC_ANGLE(0.1))) {
 			if(++t_ref_fail_count > c_stuck_rotation_max_fail_count) {
 				report_status(STATUS_STUCK);
 				t_ref_fail_count = 0;
@@ -263,8 +260,7 @@ void regulator_interrupt(void) {
 		// if robot stuck, then shut down engines
 		if(current_status == STATUS_STUCK) {
 			c_stuck = 1;
-			c_distance_regulator = 0;
-			c_rotation_regulator = 0;
+			c_rotation_regulator = c_distance_regulator = 0;
 			motor_turn_off();
 		}
 	}
@@ -474,13 +470,14 @@ void reset_driver(void) {
 	report_status(STATUS_IDLE);
 }
 
-void wait_for_regulator() {
+unsigned long wait_for_regulator() {
 	unsigned long t = sys_time;
 	while(sys_time == t) {
 		#ifdef SIM
 			usleep(10);
 		#endif
 	}
+	return sys_time;
 }
 
 void keep_moving() {
@@ -488,8 +485,6 @@ void keep_moving() {
 	keep_speed = current_speed;
 	keep_rotation = angular_speed;
 }
-
-
 
 void set_position(int x, int y, int orient_angle) {
 	Xlong = (long long)x * K2;
@@ -525,7 +520,6 @@ void send_status_and_position(void) {
 
 void set_speed_accel(float v) {
 	c_vmax = v;
-	// printf("set_speed: %f\n", c_vmax);
 	c_omega = 2 * c_vmax;
 	
 	if(c_accel == 0) {
@@ -551,6 +545,7 @@ void force_status(enum State newStatus) {
 
 void start_command() {
 	motor_init();
+	// cancel keep_moving
 	keep_count = 0;
 	if (blocked) return;
 	//packet_count++;
@@ -644,23 +639,17 @@ static char get_command(void)
 			}
 				
 			case CMD_KILL_REGULATOR:
-				// turn off regulator (PWM can active, but regulator not setting PWM), must be turned on
-				// explicitly with control_flags operator
-				c_distance_regulator = 0;
-				c_rotation_regulator = 0;
+				// turn off regulator (PWM can active, but regulator not setting PWM), 
+				// must be turned on explicitly with control_flags operator
+				c_rotation_regulator = c_distance_regulator = 0;
 				break;
 				
 			case CMD_MOVE_TO: {
-				int tmpX = get_word();
-				int tmpY = get_word();
-				char direction = get_byte();
-				int radius = get_word();
-				
 				move_cmd_next.active = 1;
-				move_cmd_next.x = tmpX;
-				move_cmd_next.y = tmpY;
-				move_cmd_next.direction = direction;
-				move_cmd_next.radius = radius;
+				move_cmd_next.x = get_word();
+				move_cmd_next.y = get_word();
+				move_cmd_next.direction = get_byte();
+				move_cmd_next.radius = get_word();
 				break;
 			}
 			
@@ -745,8 +734,8 @@ void speed_const(int a, int b) {
 		c_setpoint2=m2;
 		wait_for_regulator();
 	}
-	report_status(STATUS_IDLE);
 	set_regulator_mode(REGULATOR_POSITION);
+	end_command();
 }
 
 
@@ -1005,7 +994,7 @@ char turn_inc(int32_t angle) {
 	}
 	long T = T1+T2+T3;
 	if(T == 0) {
-		report_status(STATUS_IDLE);
+		end_command();
 		return OK;
 	}
 	
@@ -1058,8 +1047,7 @@ char turn_inc(int32_t angle) {
 		t_ref = orig + sign * (angle_ref + ref_err * (t-t0)/T);
 	}
 	dbg(printf("T AFT: %lf\n", angle_ref);)
-	report_status(STATUS_IDLE);
-	return OK;
+	end_command();
 }
 
 void arc(long Xc, long Yc, int Fi, char direction) {
@@ -1080,7 +1068,7 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 		block(0);
 	}
 	
-	float w_max, v_max, speed, accel;
+	float w_end, v_end, w_max, v_max, speed, accel;
 	int32_t L_dist;
 	if (R > wheel_distance) {
 		speed = c_vmax;
@@ -1096,16 +1084,20 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 		L_dist = absl( DEG_TO_INC_ANGLE(Fi) );
 	}
 	
-	T1 = T3 = speed / accel;
+	v_end = w_end = VMAX * c_end_speed / 255;
+	
+	T1 = speed / accel;
+	T3 = (speed - v_end) / accel;
 	int32_t L1 = accel * T1 * T1 / 2;
 	
 	if(L1 > L_dist / 2) {
 		// triangle profile
 		L1 = L_dist / 2;
-		T1 = T3 = sqrt(2 * L1 / accel);
-		T2 = 0;
+		T1 = sqrt(2 * L1 / accel);
 		w_max = w_max * (accel * T1) / speed;
 		v_max = v_max * (accel * T1) / speed;
+		T3 = (v_max - v_end) / accel;
+		T2 = 0;
 	} else {
 		// trapezoid profile
 		T2 = (L_dist - 2*L1) / speed;
@@ -1134,8 +1126,8 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 			w_ref = w_max;
 			v_ref = v_max;
 		} else if(t <= t3) {
-			w_ref = w_max - w_max * (t-t2)/T3;
-			v_ref = v_max - v_max * (t-t2)/T3;
+			w_ref = w_max - (w_max-w_end) * (t-t2)/T3;
+			v_ref = v_max - (v_max-v_end) * (t-t2)/T3;
 		}
 		
 		angle_ref += s * w_ref;
@@ -1145,7 +1137,6 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 	}
 	// printf("T AFT: %f %ld\n", angle_ref, t_ref);
 	end_command();
-	report_status(STATUS_IDLE);
 }
 
 void arc_relative(int R, int Fi) {
@@ -1160,6 +1151,7 @@ void arc_relative(int R, int Fi) {
 	s = sign(R) * sign(Fi);
 	R = abs(R);
 	float w_max, v_max, speed, accel;
+	float w_end, v_end;
 	int32_t L_dist;
 	if (R > wheel_distance) {
 		speed = c_vmax;
@@ -1175,19 +1167,33 @@ void arc_relative(int R, int Fi) {
 		L_dist = absl( DEG_TO_INC_ANGLE(Fi) );
 	}
 	
-	T1 = T3 = speed / accel;
+	v_end = w_end = VMAX * c_end_speed / 255;
+	
+	if (accel == 0) {
+		end_command();
+		return;
+	}
+	
+	T1 = speed / accel;
+	T3 = (speed - v_end) / accel;
 	int32_t L1 = accel * T1 * T1 / 2;
 	
 	if(L1 > L_dist / 2) {
 		// triangle profile
 		L1 = L_dist / 2;
 		T1 = T3 = sqrt(2 * L1 / accel);
-		T2 = 0;
 		w_max = w_max * (accel * T1) / speed;
 		v_max = v_max * (accel * T1) / speed;
+		T3 = (v_max - v_end) / accel;
+		T2 = 0;
 	} else {
 		// trapezoid profile
 		T2 = (L_dist - 2*L1) / speed;
+	}
+	
+	if (T1 == 0 || T3 == 0) {
+		end_command();
+		return;
 	}
 
 	t = t0 = sys_time;
@@ -1211,9 +1217,9 @@ void arc_relative(int R, int Fi) {
 		} else if(t <= t2) {
 			w_ref = w_max;
 			v_ref = v_max;
-		} else if(t <= t3) {
-			w_ref = w_max - w_max * (t-t2)/T3;
-			v_ref = v_max - v_max * (t-t2)/T3;
+		} else if(T3 > 0 && t <= t3) {
+			w_ref = w_max - (w_max-w_end) * (t-t2)/T3;
+			v_ref = v_max - (v_max-v_end) * (t-t2)/T3;
 		}
 		
 		angle_ref += s * w_ref;
@@ -1222,7 +1228,6 @@ void arc_relative(int R, int Fi) {
 		d_ref = dist_ref;
 	}
 	end_command();
-	report_status(STATUS_IDLE);
 }
 
 void diff_drive(int x, int y, int Fi) {
@@ -1307,7 +1312,6 @@ void diff_drive(int x, int y, int Fi) {
 		w_old = w;
     }
     end_command();
-    report_status(STATUS_IDLE);
 }
 
 /*
@@ -1523,7 +1527,6 @@ void move_to(long x, long y, int radius, char direction) {
 		wait_for_regulator();
 	}
 	end_command();
-	report_status(STATUS_IDLE);
 }
 
 // hard stop
@@ -1562,7 +1565,7 @@ void smooth_stop(void) {
 		
 		wait_for_regulator();
 	}
-	report_status(STATUS_IDLE);
+	end_command();
 }
 
 // unregulated soft stop
