@@ -82,33 +82,29 @@ float get_distance_to(long x, long y) {
 // enters periodically every 1ms, and can last 30000 cpu cycles max (but recommended to last at most half of that, 15000 cycles)
 // *********************************************************************
 
-// void INTERRUPT _INT1Interrupt(void) {
-	/*
+/*
+void INTERRUPT _INT1Interrupt(void) {
 	#ifndef SIM
 	IFS1bits.INT1IF = 0;
-	// RUN_EACH_NTH_CYCLES(uint16_t, 200, {
-		
+	RUN_EACH_NTH_CYCLES(uint16_t, 200, {
 		start_packet('X');
 		end_packet();
-	// })
+	})
 	#endif
-	*/
-// }
+}
 
-// void INTERRUPT _INT2Interrupt(void) {
-	// start_packet('x');
-	// end_packet();
-	/*
+void INTERRUPT _INT2Interrupt(void) {
+	start_packet('x');
+	end_packet();
 	#ifndef SIM
 	IFS1bits.INT2IF = 0;
-	// RUN_EACH_NTH_CYCLES(uint16_t, 200, {
-		
+	RUN_EACH_NTH_CYCLES(uint16_t, 200, {
 		start_packet('x');
 		end_packet();
-	// })
+	})
 	#endif
-	*/
-// }
+}
+*/
 
 struct regulator_t {
 	int last_dist;
@@ -487,6 +483,13 @@ void wait_for_regulator() {
 	}
 }
 
+void keep_moving() {
+	keep_count = c_keep_count;
+	keep_speed = current_speed;
+	keep_rotation = angular_speed;
+}
+
+
 
 void set_position(int x, int y, int orient_angle) {
 	Xlong = (long long)x * K2;
@@ -547,13 +550,21 @@ void force_status(enum State newStatus) {
 }
 
 void start_command() {
+	motor_init();
 	keep_count = 0;
 	if (blocked) return;
 	//packet_count++;
 }
 
+void end_command() {
+	if (c_end_speed > 0) {
+		keep_moving();
+	}
+	report_status(STATUS_IDLE);
+}
+
 void report_status(int new_status) {
-	if(blocked) return;
+	if(blocked || current_status == new_status) return;
 	current_status = new_status;
 	if( c_status_change_report && current_status != last_status ) {
 		start_packet(MSG_STATUS_CHANGED);
@@ -576,6 +587,7 @@ struct MoveCmdParams {
 
 struct MoveCmdParams move_cmd_next;
 int m1,m2;
+
 
 /*
 	receive command while moving
@@ -668,9 +680,7 @@ static char get_command(void)
 			
 			// break current command, status remains for 5ms
 			case CMD_BREAK:
-				keep_count = c_keep_count;
-				keep_speed = current_speed;
-				keep_rotation = angular_speed;
+				keep_moving();
 				return BREAK;
 			
 			default:
@@ -692,7 +702,6 @@ void motor_const(int a, int b) {
 	c_enable_stuck = 0;
 	start_command();
 	report_status(STATUS_MOVING);
-	motor_init();
 	m1=a;m2=b;
 	while(1) {
 		if(get_command() == ERROR) {
@@ -723,8 +732,7 @@ void speed_const(int a, int b) {
 	set_regulator_mode(REGULATOR_SPEED);
 	start_command();
 	report_status(STATUS_MOVING);
-	motor_init();
-	m1=a;m2=b;
+	m1=a; m2=b;
 	while(1) {
 		if(get_command() == ERROR) {
 			motor_turn_off();
@@ -745,14 +753,12 @@ void speed_const(int a, int b) {
 // goto
 // turn to point and move to it (Xd, Yd)
 void turn_and_go(int Xd, int Yd, char direction) {
-	motor_init();
 	start_command();
 	report_status(STATUS_MOVING);
 	long t, t0, t1, t2, t3;
-	long T1, T2, T3;
+	long T1, T2, T3, D0, D1, D2;
 	long L_dist, L0, L1, L2, L3;
-	long D0, D1, D2;
-	float v_vrh, v_end, v_ref, v0;
+	float v_peak, v_end, v_ref, v0;
 	int length;
 	long long int Xdlong, Ydlong;
 	
@@ -764,21 +770,22 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	block(1);
 	// turn to end point, find angle to turn
 	length = get_distance_to(Xd, Yd);
-	if(length > 1) {
+	if(length > 2) {
 		rotate_absolute_angle_inc( 
 			RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + 
-			DEG_TO_INC_ANGLE(direction < 0 ? 180 : 0) );
+			DEG_TO_INC_ANGLE(direction < 0 ? 180 : 0)
+		);
 	} else {
 		block(0);
 		report_status(STATUS_IDLE);
 		return;
 	}
 	block(0);
-	v_end = c_vmax * /*end_speed*/0 / 256;
+	v_end = VMAX * c_end_speed / 256;
 	L_dist = MM_TO_INC(length);
 	
 	float vmax;
-	long target_dref=0;
+	long target_dref = 0;
 	
 	if(c_debug) {
 		start_packet(MSG_DEBUG);
@@ -788,14 +795,14 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	
 	if (g_accel == 0) return;
 	// calculate phase durations
-	T1 = (c_vmax - v0) / g_accel + 0.5;
+	T1 = maxf(0, c_vmax - v0) / g_accel + 0.5;
 	L0 = L;
 	L1 = current_speed * T1 + g_accel * T1 * T1 / 2;
 
-	T3 = (c_vmax - v_end) / g_accel + 0.5;
+	T3 = maxf(0, c_vmax - v_end) / g_accel + 0.5;
 	L3 = c_vmax * T3 - g_accel * T3 * T3 / 2;
 
-	if( (L1 + L3) < L_dist) {
+	if( (L1 + L3) < L_dist ) {
 		// can reach c_vmax
 		L2 = L_dist - L1 - L3;
 		// T2 = ceil(L2 / c_vmax);
@@ -805,14 +812,14 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	} else {
 		// can't reach c_vmax
 		T2 = 0;
-		v_vrh = sqrt(g_accel * L_dist + (current_speed * current_speed + v_end * v_end) / 2);
-		if( (v_vrh < current_speed) || (v_vrh < v_end) ) {
+		v_peak = sqrt(g_accel * L_dist + (current_speed * current_speed + v_end * v_end) / 2);
+		if( (v_peak < current_speed) || (v_peak < v_end) ) {
 			report_status(STATUS_ERROR);
 			return; //mission impossible
 		}
-		vmax = v_vrh;
-		T1 = (v_vrh - current_speed) / g_accel + 0.5;
-		T3 = (v_vrh - v_end) / g_accel + 0.5;
+		vmax = v_peak;
+		T1 = (v_peak - current_speed) / g_accel + 0.5;
+		T3 = (v_peak - v_end) / g_accel + 0.5;
 	}
 
 	t = t0 = sys_time;
@@ -822,7 +829,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	
 	long T = T1+T2+T3;
 	if(T <= 10) {
-		report_status(STATUS_IDLE);
+		end_command();
 		return;
 	}
 	
@@ -831,7 +838,6 @@ void turn_and_go(int Xd, int Yd, char direction) {
 	long ref = 0;
 	long ref_max = g_accel * T1*T1/2 + vmax * T2 + g_accel * T3 * T3 / 2;
 	long ref_err = (L_dist - ref_max) ;
-	ref_err = 0;
 	// ref_err = 0;
 	
 	while(t <= t3) {
@@ -858,7 +864,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 		d_ref = orig + direction * (ref + ref_err * (t-t0) / T);
 	}
 
-	report_status(STATUS_IDLE);
+	end_command();
 }
 
 
@@ -866,7 +872,6 @@ void forward_lazy(int length, uint8_t speed) {
 	long L_dist = MM_TO_INC(length);
 	long end = d_ref+L_dist;
 	start_command();
-	motor_init();
 	report_status(STATUS_MOVING);
 	long add_inc = VMAX * speed / 255;
 	set_regulator_mode(REGULATOR_SPEED);
@@ -881,52 +886,45 @@ void forward_lazy(int length, uint8_t speed) {
 	}
 	d_ref = L;
 	set_regulator_mode(REGULATOR_POSITION);
-	report_status(STATUS_IDLE);
+	end_command();
 }
 
 // move robot forward in direction its facing
 void forward(int length) {
 	long t, t0, t1, t2, t3;
-	long T1, T2, T3;
 	long L_dist, L0, L1, L2, L3;
-	long D0, D1, D2;
+	long D0, D1, D2, T1, T2, T3;
 	float v_vrh, v_end, v0, v_ref;
 	char sign;
 	
-	motor_init();
 	start_command();
 	report_status(STATUS_MOVING);
 	
-	d_ref=L;
-	v_ref=current_speed;
+	d_ref = L;
+	v_ref = current_speed;
 	v0 = v_ref;
-	v_end = c_vmax * /*end_speed*/0 / 256;
+	// v_end = c_vmax * /*end_speed*/0 / 256;
+	v_end = VMAX * c_end_speed / 256;
 	sign = (length >= 0) ? 1 : -1;
 	
 	L_dist = MM_TO_INC(length);
 
-	T1 = (c_vmax - v_ref) / g_accel;
+	T1 = maxf(0, c_vmax - v_ref) / g_accel;
 	L0 = L;
 	L1 = v_ref * T1 + g_accel * T1 * (T1 / 2);
 
-	T3 = (c_vmax - v_end) / g_accel;
+	T3 = maxf(0, c_vmax - v_end) / g_accel;
 	L3 = c_vmax * T3 - g_accel * T3 * (T3 / 2);
 	
-	
-
-	if((L1 + L3) < (long)sign * L_dist)
-	{
+	if((L1 + L3) < (long)sign * L_dist) {
 		// can reach
 		L2 = sign * L_dist - L1 - L3;
 		T2 = L2 / c_vmax;
-	}
-	else
-	{
+	} else {
 		// can't reach c_vmax
 		T2 = 0;
 		v_vrh = sqrt(g_accel * sign * L_dist + (v_ref * v_ref + v_end * v_end) / 2);
-		if((v_vrh < v_ref) || (v_vrh < v_end))
-		{
+		if( (v_vrh < v_ref) || (v_vrh < v_end) ) {
 			report_status(STATUS_ERROR);
 			// printf("ERROR\n");
 			return; //mission impossible
@@ -951,23 +949,18 @@ void forward(int length) {
 			return;
 		}
 		
-		if(t <= t1)
-		{
+		if(t <= t1) {
 			v_ref = v0 + g_accel * (t-t0);
 			D1 = D2 = d_ref = D0 + sign * (v0 * (t-t0) + g_accel * (t-t0)*(t-t0)/2);
-		}
-		else if(t <= t2)
-		{
+		} else if(t <= t2) {
 			v_ref = c_vmax;
 			D2 = d_ref = D1 + sign * c_vmax * (t-t1);
-		}
-		else if(t <= t3)
-		{
+		} else if(t <= t3) {
 			// v_ref = c_vmax - g_accel * (t-t2);
 			d_ref = D2 + sign * (v_ref * (t-t2) - g_accel * (t-t2) * (t-t2) / 2);
 		}
 	}
-	report_status(STATUS_IDLE);
+	end_command();
 }
 
 void rotate_absolute_angle(int angle) {
@@ -988,7 +981,6 @@ char turn_inc(int32_t angle) {
 	double angle_ref, w_ref = 0;
 	char sign;
 
-	motor_init();
 	start_command();
 	report_status(STATUS_ROTATING);
 	
@@ -1076,7 +1068,6 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 	int32_t T1, T2, T3;
 	int8_t s;
 
-	motor_init();
 	start_command();
 	report_status(STATUS_MOVING);
 	
@@ -1153,6 +1144,7 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 		d_ref = dist_ref;
 	}
 	// printf("T AFT: %f %ld\n", angle_ref, t_ref);
+	end_command();
 	report_status(STATUS_IDLE);
 }
 
@@ -1162,7 +1154,6 @@ void arc_relative(int R, int Fi) {
 	int32_t T1, T2, T3;
 	int8_t s;
 
-	motor_init();
 	start_command();
 	report_status(STATUS_MOVING);
 	
@@ -1230,6 +1221,7 @@ void arc_relative(int R, int Fi) {
 		t_ref = angle_ref;
 		d_ref = dist_ref;
 	}
+	end_command();
 	report_status(STATUS_IDLE);
 }
 
@@ -1238,14 +1230,11 @@ void diff_drive(int x, int y, int Fi) {
 	d_ref = L;
 	dbg(printf("x: %d, y: %d, fi: %d\n",x,y,Fi);)
 	float w_max=0,v_max=0;
-	float cur_theta, goal_theta, theta, angle_to_heading;
-	float a,b;
+	float a, b, cur_theta, goal_theta, theta, angle_to_heading;
+	double v,w, v_old=0, w_old=0;
 	int d;
-	double v,w;
-	double v_old=0,w_old=0;
 	long dist;
 	start_command();
-	motor_init();
 	report_status(STATUS_MOVING);
 	
 	while(1) {
@@ -1317,6 +1306,7 @@ void diff_drive(int x, int y, int Fi) {
 		v_old = v;
 		w_old = w;
     }
+    end_command();
     report_status(STATUS_IDLE);
 }
 
@@ -1332,7 +1322,7 @@ void move_to(long x, long y, int radius, char direction) {
 	float rotation_speed = angular_speed; /* [inc/ms] */
 	float min_speed = c_speed_drop * c_vmax;
 	
-	motor_init();
+	
 	start_command();
 	report_status(STATUS_MOVING);
 	
@@ -1384,11 +1374,9 @@ void move_to(long x, long y, int radius, char direction) {
 	int slowdown_phase = 0;
 	int maxspeed_phase = 0;
 
-	int xd, yd;
+	int xd, yd, lt = sys_time;
 	
-	float accel;
-	float alpha;
-	int lt = sys_time;
+	float accel, alpha;
 	xd = X - x;
 	yd = Y - y;
 	while(1) {
@@ -1397,10 +1385,9 @@ void move_to(long x, long y, int radius, char direction) {
 		}
 		
 		dt = sys_time - lt;
-		
 		accel = g_accel * dt;
 		alpha = g_alpha * dt;
-				
+		
 		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
 		long orient = orientation;
 		
@@ -1413,10 +1400,8 @@ void move_to(long x, long y, int radius, char direction) {
 		
 		dist = get_distance_to(x,y);
 		
-		char ss = signf(speed);
-		char sr = signf(rotation_speed);
-		float abs_speed = absf(speed);
-		float abs_rotation_speed = absf(rotation_speed);
+		char ss = signf(speed), sr = signf(rotation_speed);
+		float abs_speed = absf(speed), abs_rotation_speed = absf(rotation_speed);
 		
 		// speed
 		if(ss != direction) {
@@ -1430,6 +1415,8 @@ void move_to(long x, long y, int radius, char direction) {
 				if(slowdown_phase == 0) {
 					slowdown_phase = 1;
 					start_dist = dist;
+					
+					// next cmd
 					if(move_cmd_next.active) {
 						v = c_vmax;
 						w = w_div_v * v;
@@ -1448,6 +1435,8 @@ void move_to(long x, long y, int radius, char direction) {
 				speed = dval(ss, maxf(min_speed, abs_speed-accel ));
 				
 				if(dist < 2.0f || ((X - x) * xd + (Y-y) * yd) > 0) {
+					
+					// next cmd
 					if(move_cmd_next.active == 1) {
 						
 						// done cmd
@@ -1473,11 +1462,11 @@ void move_to(long x, long y, int radius, char direction) {
 				
 				if(speed <= min_speed || dist < 2.0f) {
 					accel = minf(accel * dist / start_dist, accel);
-					
 					speed = dval(ss, maxf(0.0f, abs_speed - accel));
+					
+					// no more commands, stop
 					if(move_cmd_next.active != 1 && speed == 0.0f) {
 						d_ref = D;
-						
 						break;
 					}
 				}
@@ -1533,11 +1522,12 @@ void move_to(long x, long y, int radius, char direction) {
 		
 		wait_for_regulator();
 	}
+	end_command();
 	report_status(STATUS_IDLE);
 }
 
-void stop(void)
-{
+// hard stop
+void stop(void) {
 	d_ref = L;
 	t_ref = orientation;
 
@@ -1551,6 +1541,7 @@ void stop(void)
 	report_status(STATUS_IDLE);
 }
 
+// regulated soft stop
 void smooth_stop(void) {
 	float speed = current_speed;
 	float ang_speed = angular_speed;
@@ -1574,6 +1565,7 @@ void smooth_stop(void) {
 	report_status(STATUS_IDLE);
 }
 
+// unregulated soft stop
 void soft_stop(void) {
 	motor_turn_off();
 	report_status(STATUS_IDLE);
@@ -1591,26 +1583,22 @@ void set_rotation_speed(unsigned char max_speed, unsigned char max_accel) {
 	}
 }
 
-void set_speed(unsigned char tmp)
-{
+void set_speed(unsigned char tmp) {
 	set_speed_accel(VMAX * tmp / 256);
 }
 
 void reset_stuck() {
 	prev_orientation = orientation;
 	prev_L = L;
-	t_ref_fail_count = 0;
-	d_ref_fail_count = 0;
-	prev_rotation_error = 0;
-	prev_distance_error = 0;
+	d_ref_fail_count = t_ref_fail_count = 0;
+	prev_distance_error = prev_rotation_error = 0;
 	if(c_stuck) {
-		c_distance_regulator = 1;
-		c_rotation_regulator = 1;
+		c_rotation_regulator = c_distance_regulator = 1;
 		c_stuck = 0;
 	}
 }
 
-// ========[ CONFIG ]=============
+// ========================[ CONFIG ]=================================
 
 
 static void on_odometry_coefficients_changed() {

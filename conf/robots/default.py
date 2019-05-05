@@ -35,6 +35,7 @@ conf_floats={
 		'pid_i2': 1.0,
 		'pid_lin1': 0.5,
 		'pid_lin2': 0.5,
+		'end_speed': 0,
 		
 		'kp': 1.0,
 		'ka': 5.43,
@@ -48,6 +49,7 @@ conf_integers={
 		'stuck_distance_max_fail_count': 200,
 		'stuck_rotation_max_fail_count': 200,
 		
+		'keep_count': 100,
 		# 3200 is max motor speed
 		'motor_speed_limit': 3200,
 		'left_motor_speed_limit': 3200,
@@ -67,7 +69,7 @@ conf_bytes={
 		'debug': 0,
 		'debug2': 0,
 		'status_change_report': 1,
-		'keep_count': 100,
+		
 		'tmr': 20,
 		'motor_connected': 1,
 		'debug_encoders': 0,
