@@ -14,6 +14,7 @@ void block(int b) {
 	blocked = b;
 }
 
+// TODO: packet numbering
 int packet_count = 0;
 void reset_packet_count() {
 	packet_count = 0;
@@ -37,16 +38,15 @@ static float g_accel = 0, g_alpha = 0;
 	g_alpha = rot_speed_change / ms
 */
 // changes in interrupt, so here are all volatiles
-static volatile ldouble positionL=0, positionR=0, Xlong = 0, Ylong = 0;
-static long long encL=0,encR=0;
+static volatile ldouble positionL = 0, positionR = 0, Xlong = 0, Ylong = 0;
+static long long encL = 0,encR = 0;
 static volatile long X = 0, Y = 0;
-// static volatile long current_speed=0, angular_speed=0;
-static volatile float current_speed=0, angular_speed=0;
+static volatile float current_speed = 0, angular_speed = 0;
 static volatile unsigned long sys_time = 0;
 
 // ----- variables for controlling robot -----
 static volatile float orientation = 0;
-static volatile ldouble L = 0; // total distance
+static volatile ldouble L = 0;
 static volatile long t_ref = 0, d_ref = 0;
 static volatile long prev_rotation_error = 0, prev_distance_error = 0;
 static volatile int16_t keep_count = 0;
@@ -61,15 +61,13 @@ static long prev_L = 0;
 static int t_ref_fail_count = 0;
 static int d_ref_fail_count = 0;
 
-// static int16_t send_status_counter = 0;
-
 static enum State current_status = STATUS_IDLE;
 static enum State last_status = STATUS_IDLE;
 
 struct filter_t filter_speed1;
 struct filter_t filter_speed2;
-int16_t filter_speed_array1[5]={0};
-int16_t filter_speed_array2[5]={0};
+int16_t filter_speed_array1[5] = {0};
+int16_t filter_speed_array2[5] = {0};
 int16_t filter_speed_coef[5] = {1,1,1,1,1};
 
 float filt_speed = 0;
@@ -85,42 +83,10 @@ float get_distance_to(long x, long y) {
 	return sqrt((x-X)*(x-X) + (y-Y)*(y-Y));
 }
 
-// ==========================================
-
-
-// --------------------------------------------------------------
-// volatile int check = 0;
 // **********************************************************************
 // ODOMETRY AND REGULATION (every 1ms)
 // enters periodically every 1ms, and can last 30000 cpu cycles max (but recommended to last at most half of that, 15000 cycles)
 // *********************************************************************
-
-/*
-void INTERRUPT _INT1Interrupt(void) {
-	#ifndef SIM
-	IFS1bits.INT1IF = 0;
-	RUN_EACH_NTH_CYCLES(uint16_t, 200, {
-		start_packet('X');
-		end_packet();
-	})
-	#endif
-}
-
-void INTERRUPT _INT2Interrupt(void) {
-	start_packet('x');
-	end_packet();
-	#ifndef SIM
-	IFS1bits.INT2IF = 0;
-	RUN_EACH_NTH_CYCLES(uint16_t, 200, {
-		start_packet('x');
-		end_packet();
-	})
-	#endif
-}
-*/
-
-
-
 
 #ifdef SIM
 #include <time.h>
@@ -636,7 +602,7 @@ static char get_command(void)
 
 			case CMD_HARD_STOP:
 				// stop and become idle
-				stop();
+				cmd_stop();
 				report_status(STATUS_IDLE);
 				__delay_ms(10);
 
@@ -651,7 +617,7 @@ static char get_command(void)
 				return BREAK;
 			
 			case CMD_SMOOTH_STOP:
-				smooth_stop();
+				cmd_smooth_stop();
 				return BREAK;
 				
 			case CMD_SET_CONFIG:
@@ -718,7 +684,7 @@ static char get_command(void)
 }
 
 
-void motor_const(int a, int b) {
+void cmd_motor_const(int a, int b) {
 	char old_val = c_motor_connected;
 	char old_stuck = c_enable_stuck;
 	int old_rate_of_change = c_motor_rate_of_change;
@@ -743,7 +709,7 @@ void motor_const(int a, int b) {
 	report_status(STATUS_IDLE);
 }
 
-void speed_const(int a, int b) {
+void cmd_speed_const(int a, int b) {
 	a = a * VMAX / 255;
 	b = b * VMAX / 255;
 	
@@ -775,9 +741,8 @@ void speed_const(int a, int b) {
 }
 
 
-// goto
 // turn to point and move to it (Xd, Yd)
-void turn_and_go(int Xd, int Yd, char direction) {
+void cmd_goto(int Xd, int Yd, char direction) {
 	start_command();
 	report_status(STATUS_MOVING);
 	long t, t0, t1, t2, t3;
@@ -892,7 +857,7 @@ void turn_and_go(int Xd, int Yd, char direction) {
 }
 
 
-void forward_lazy(int length, uint8_t speed) {
+void cmd_forward_lazy(int length, uint8_t speed) {
 	long L_dist = MM_TO_INC(length);
 	long end = d_ref+L_dist;
 	start_command();
@@ -914,7 +879,7 @@ void forward_lazy(int length, uint8_t speed) {
 }
 
 // move robot forward in direction its facing
-void forward(int length) {
+void cmd_forward(int length) {
 	long t, t0, t1, t2, t3;
 	long L_dist, L0, L1, L2, L3;
 	long D0, D1, D2, T1, T2, T3;
@@ -987,7 +952,7 @@ void forward(int length) {
 	end_command();
 }
 
-void rotate_absolute_angle(int angle) {
+void cmd_absrot(int angle) {
 	rotate_absolute_angle_inc(DEG_TO_INC_ANGLE(angle));
 }
 
@@ -995,7 +960,7 @@ void rotate_absolute_angle_inc(int32_t angle) {
 	turn_inc(inc_angle_diff(angle, orientation));
 }
 
-char turn(int angle) {
+char cmd_turn(int angle) {
 	return turn_inc(DEG_TO_INC_ANGLE(angle));
 }
 
@@ -1085,7 +1050,7 @@ char turn_inc(int32_t angle) {
 	end_command();
 }
 
-void arc(long Xc, long Yc, int Fi, char direction) {
+void cmd_curve(long Xc, long Yc, int Fi, char direction) {
 	double R, dist_ref, angle_ref, w_ref = 0, v_ref = 0;
 	uint32_t t, t0, t1, t2, t3;
 	int32_t T1, T2, T3;
@@ -1099,7 +1064,7 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 	R = get_distance_to(Xc, Yc);
 	if(R > 0) {
 		block(1);
-		rotate_absolute_angle( RAD_TO_DEG_ANGLE( atan2((int)Y-(int)Yc, (int)X-(int)Xc) ) + direction * s * 90);
+		rotate_absolute_angle_inc( RAD_TO_INC_ANGLE( atan2((int)Y-(int)Yc, (int)X-(int)Xc) ) + DEG_TO_INC_ANGLE(direction * s * 90) );
 		block(0);
 	}
 	
@@ -1175,7 +1140,7 @@ void arc(long Xc, long Yc, int Fi, char direction) {
 	end_command();
 }
 
-void arc_relative(int R, int Fi) {
+void cmd_curve_rel(int R, int Fi) {
 	float dist_ref, angle_ref, w_ref = 0, v_ref = 0;
 	uint32_t t, t0, t1, t2, t3;
 	int32_t T1, T2, T3;
@@ -1267,7 +1232,7 @@ void arc_relative(int R, int Fi) {
 	end_command();
 }
 
-void diff_drive(int x, int y, int Fi) {
+void cmd_diff_drive(int x, int y, int Fi) {
 	t_ref = orientation;
 	d_ref = L;
 	dbg(printf("x: %d, y: %d, fi: %d\n",x,y,Fi);)
@@ -1360,7 +1325,7 @@ void diff_drive(int x, int y, int Fi) {
 		1 - forward
 	   -1 - backward
 */
-void move_to(long x, long y, int radius, char direction) {
+void cmd_move(long x, long y, int radius, char direction) {
 	move_cmd_next.active = 0;
 	float speed = current_speed;
 	float rotation_speed = angular_speed; /* [inc/ms] */
@@ -1570,7 +1535,7 @@ void move_to(long x, long y, int radius, char direction) {
 }
 
 // hard stop
-void stop(void) {
+void cmd_stop(void) {
 	start_command();
 	d_ref = L;
 	t_ref = orientation;
@@ -1586,7 +1551,7 @@ void stop(void) {
 }
 
 // regulated soft stop
-void smooth_stop(void) {
+void cmd_smooth_stop(void) {
 	start_command();
 	report_status(STATUS_MOVING);
 	float speed = current_speed;
@@ -1614,7 +1579,7 @@ void smooth_stop(void) {
 }
 
 // unregulated soft stop
-void soft_stop(void) {
+void cmd_soft_stop(void) {
 	start_command();
 	motor_turn_off();
 	report_status(STATUS_IDLE);

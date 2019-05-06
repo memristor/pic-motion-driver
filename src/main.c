@@ -117,26 +117,26 @@ int main(void) {
 			case CMD_FORWARD:
 				// move forward [mm]
 				tmp = get_word();
-				forward(tmp);
+				cmd_forward(tmp);
 				break;
 				
 			case CMD_FORWARD_LAZY:
 				tmp = get_word();
 				v = get_byte();
-				forward_lazy(tmp, v);
+				cmd_forward_lazy(tmp, v);
 				break;
 
 				
 			case CMD_ABSOLUTE_ROTATE:
 				// absolute angle [degrees]
 				tmp = get_word();
-				rotate_absolute_angle(tmp);
+				cmd_absrot(tmp);
 				break;
 
 			case CMD_RELATIVE_ROTATE:
 				// relative angle [degrees]
 				tmp = get_word();
-				turn(tmp);
+				cmd_turn(tmp);
 				break;
 				
 			case CMD_TURN_AND_GO:
@@ -144,7 +144,7 @@ int main(void) {
 				tmpX = get_word();
 				tmpY = get_word();
 				direction = get_byte(); // + means forward, - means backward
-				turn_and_go(tmpX, tmpY, direction); //(x, y, end_speed, direction)
+				cmd_goto(tmpX, tmpY, direction); //(x, y, end_speed, direction)
 				break;
 				     
 			case CMD_CURVE:
@@ -152,22 +152,20 @@ int main(void) {
 				tmpY = get_word();
 				tmpO = get_word();
 				tmp = get_byte();
-				// void arc(long Xc, long Yc, int Fi, char direction)
-				arc(tmpX, tmpY, tmpO, tmp);
+				cmd_curve(tmpX, tmpY, tmpO, tmp);
 				break;
 				
 			case CMD_CURVE_RELATIVE:
 				tmpX = get_word();
 				tmpO = get_word();
-				// void arc_relative(int R, int Fi)
-				arc_relative(tmpX, tmpO);
+				cmd_curve_rel(tmpX, tmpO);
 				break;
 				
 			case CMD_DIFF_DRIVE:
 				tmpX = get_word();
 				tmpY = get_word();
 				tmpO = get_word();
-				diff_drive( tmpX, tmpY, tmpO );
+				cmd_diff_drive( tmpX, tmpY, tmpO );
 				break;
 			
 			case CMD_MOVE_TO: {
@@ -177,20 +175,20 @@ int main(void) {
 				int radius = get_word();
 				int direction = get_byte();
 				
-				move_to(tmpX, tmpY, radius, direction);
+				cmd_move(tmpX, tmpY, radius, direction);
 				break;
 			}
 			case CMD_HARD_STOP:
-				stop();
+				cmd_stop();
 				break;
 				
 			case CMD_SMOOTH_STOP:
-				smooth_stop();
+				cmd_smooth_stop();
 				break;
 				
 			case CMD_SOFT_STOP:
 				// stop and kill PWM
-				soft_stop();
+				cmd_soft_stop();
 				break;
 				
 			case CMD_RESET_DRIVER:
@@ -224,14 +222,14 @@ int main(void) {
 			case CMD_MOTOR: {
 				tmpX = get_word();
 				tmpY = get_word();
-				motor_const(tmpX, tmpY);
+				cmd_motor_const(tmpX, tmpY);
 				break;
 			}
 			
 			case CMD_KEEP_SPEED: {
 				tmpX = (int16_t)get_word();
 				tmpY = (int16_t)get_word();
-				speed_const(tmpX, tmpY);
+				cmd_speed_const(tmpX, tmpY);
 				break;
 			}
 			

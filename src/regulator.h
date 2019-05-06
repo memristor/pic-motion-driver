@@ -90,34 +90,38 @@ void reset_driver(void);
 void reset_stuck(void);
 
 // standard commands
-void turn_and_go(int Xd, int Yd, char direction);
-void forward(int length);
-void forward_lazy(int length, uint8_t speed);
-void rotate_absolute_angle(int angle);
+
 void rotate_absolute_angle_inc(int32_t angle);
-char turn(int angle);
 char turn_inc(int32_t angle);
-void arc(long Xc, long Yc, int Fi, char direction);
-void arc_relative(int R, int Fi);
-void move_to(long x, long y, int radius, char direction);
-void stop(void);
-void motor_const(int a, int b);
-void speed_const(int a, int b);
+
+void cmd_absrot(int angle);
+void cmd_goto(int Xd, int Yd, char direction);
+void cmd_forward(int length);
+void cmd_forward_lazy(int length, uint8_t speed);
+char cmd_turn(int angle);
+void cmd_curve(long Xc, long Yc, int Fi, char direction);
+void cmd_curve_rel(int R, int Fi);
+void cmd_move(long x, long y, int radius, char direction);
+void cmd_stop(void);
+void cmd_motor_const(int a, int b);
+void cmd_speed_const(int a, int b);
+void cmd_diff_drive(int x,int y, int fi);
+
+void cmd_smooth_stop(void);
+void cmd_soft_stop(void);
+
+
 void set_speed_accel(float v);
 void set_speed(unsigned char tmp);
 void set_rotation_speed(unsigned char max_speed, unsigned char max_accel);
 void set_position(int X, int Y, int orientation);
-void diff_drive(int x,int y, int fi);
+
 void send_status_and_position(void);
 void report_status(int status);
 void on_status_changed(void);
 enum State get_status(void);
 void force_status(enum State);
 
-void smooth_stop(void);
-void soft_stop(void);
-
-void cmd_pwm_opto();
 void reset_packet_count();
 void regulator_interrupt();
 #endif	/* REGULACIJA_H */
