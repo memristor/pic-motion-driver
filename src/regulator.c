@@ -50,9 +50,13 @@ static volatile ldouble L = 0;
 static volatile long t_ref = 0, d_ref = 0;
 static volatile long prev_rotation_error = 0, prev_distance_error = 0;
 static volatile int16_t keep_count = 0;
+static volatile ldouble prev_positionR = 0;
 
 static float keep_rotation_acc = 0, keep_speed_acc = 0;
 static float keep_rotation = 0, keep_speed = 0;
+
+static long speed_mode_error_accum1 = 0;
+static long speed_mode_error_accum2 = 0;
 // -------------------------------
 
 // stuck detection in regulator
@@ -88,55 +92,15 @@ float get_distance_to(long x, long y) {
 // enters periodically every 1ms, and can last 30000 cpu cycles max (but recommended to last at most half of that, 15000 cycles)
 // *********************************************************************
 
-#ifdef SIM
-#include <time.h>
-struct timespec diff(struct timespec start, struct timespec end);
-struct timespec past;
-int avg=0;
-int count = 0;
-int count_n = 1000;
-
-int avg2=1000000;
-int vals[10]={1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000};
-int a_ptr=0;
-#endif
-#include <stdlib.h>
-static long speed_mode_error_accum1 = 0;
-static long speed_mode_error_accum2 = 0;
-static volatile ldouble prev_positionR = 0;
 void regulator_interrupt(void) {
-	
 	static float vL,vR;
 	static long sint, cost, theta = 0;
 	static signed long regulator_distance, regulator_rotation;
 	static long error_distance, error_angular;
 	static float x, y;
-	
+	is_interrupt = 1;
 	sys_time++;
 	
-	is_interrupt = 1;
-	
-#ifdef SIM
-	struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    struct timespec tmp=diff(past,now);
-    
-    avg += tmp.tv_nsec;
-    if(++count >= count_n) {
-		int passed = avg/count;
-		// printf("time passed: %d\n", passed);
-		
-		int cur = avg2 * 10 - vals[a_ptr];
-		vals[a_ptr++] = passed;
-		a_ptr = a_ptr % 10;
-		avg2 = (cur + passed) / 10;
-		count = 0;
-		avg=0;
-	}
-	
-    past=now;
-#endif
-
 	// keep speed for some time if interrupted
 	if(keep_count > 0) {
 		
@@ -185,8 +149,8 @@ void regulator_interrupt(void) {
 	
 	// speed
 	current_speed = (vL + vR) / 2; // v = s/t, current_speed [inc/ms]
-	float dbl = (vL + vR); // v = s/t, current_speed [inc/ms]
 	angular_speed = vR - vL; // angular speed [inc/ms]
+	float dbl = (vL + vR); // v = s/t, current_speed [inc/ms]
 
 	// filtered speeds
 	filt_speed = filter_in(&filter_speed1, current_speed);
