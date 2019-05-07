@@ -28,13 +28,13 @@ double wheel_correction_coeff = 1.0;
 static int setpoint1_active = 0, setpoint2_active = 0;
 
 /*
-	c_vmax = max speed / ms
+	g_vmax = max speed / ms
 	g_accel = speed_change / ms
 */
 static float g_accel = 0, g_alpha = 0;
-
+static float g_vmax = 0, g_omega = 0;
 /*
-	c_omega = arc_length / ms = wheel_distance * change_of_angle
+	g_omega = arc_length / ms = wheel_distance * change_of_angle
 	g_alpha = rot_speed_change / ms
 */
 // changes in interrupt, so here are all volatiles
@@ -52,7 +52,6 @@ static volatile long prev_rotation_error = 0, prev_distance_error = 0;
 static volatile int16_t keep_count = 0;
 static volatile ldouble prev_positionR = 0;
 
-static float keep_rotation_acc = 0, keep_speed_acc = 0;
 static float keep_rotation = 0, keep_speed = 0;
 struct trapezoid keep_moving_trap_t;
 struct trapezoid keep_moving_trap_d;
@@ -430,12 +429,8 @@ unsigned long wait_for_regulator() {
 
 void keep_moving() {
 	keep_count = c_keep_count;
-	keep_rotation_acc = keep_speed_acc = 0;
 	
-	// keep_speed = current_speed;
-	// keep_rotation = angular_speed;
-	
-	printf("keep moving: %f:%f  %f:%f\n", current_speed, filt_speed, angular_speed, filt_ang_speed);
+	// printf("keep moving: %f:%f  %f:%f\n", current_speed, filt_speed, angular_speed, filt_ang_speed);
 	keep_speed = filt_speed;
 	keep_rotation = filt_ang_speed;
 	trapezoid_init_from_time(&keep_moving_trap_d, keep_count, filt_speed, filt_speed, 0, g_accel);
@@ -473,23 +468,6 @@ void send_status_and_position(void) {
 		put_word((int16_t)INC_TO_DEG_ANGLE(orientation) | (packet_count << 9));
 	end_packet();
 }
-
-void set_speed_accel(float v) {
-	c_vmax = v;
-	c_omega = 2 * c_vmax;
-	
-	if(c_accel == 0) {
-		g_accel = c_vmax / ((350-500) * (v / VMAX) + 500);
-	} else {
-		g_accel = c_vmax / c_accel;
-	}
-	if(c_alpha == 0) {
-		g_alpha = 2 * g_accel;
-	} else {
-		g_alpha = c_omega / c_alpha;
-	}
-}
-
 
 enum State get_status(void) {
 	return current_status;
@@ -701,7 +679,7 @@ void cmd_goto(int Xd, int Yd, char direction) {
 	long D0, t, t0;
 	int length;
 	long long int Xdlong, Ydlong;
-	float vmax = c_vmax, accel = g_accel;
+	float vmax = g_vmax, accel = g_accel;
 	
 	start_command();
 	report_status(STATUS_MOVING);
@@ -788,7 +766,7 @@ void cmd_forward(int length) {
 	d_ref = L;
 	
 	struct trapezoid trap;
-	trapezoid_init(&trap, absl(MM_TO_INC(length)), current_speed*s, c_vmax, VMAX*c_end_speed/256, g_accel);
+	trapezoid_init(&trap, absl(MM_TO_INC(length)), current_speed*s, g_vmax, VMAX*c_end_speed/256, g_accel);
 	
 	t = t0 = sys_time;
 	D0 = d_ref;
@@ -827,7 +805,7 @@ char turn_inc(int32_t angle) {
 	s = sign(angle);
 	
 	struct trapezoid trap;
-	trapezoid_init(&trap, absl(angle), filt_ang_speed*s, c_omega, VMAX*c_end_speed/256, g_alpha);
+	trapezoid_init(&trap, absl(angle), filt_ang_speed*s, g_omega, VMAX*c_end_speed/256, g_alpha);
 	
 	t = t0 = sys_time;
 	T0 = t_ref;
@@ -866,13 +844,13 @@ void cmd_curve(long Xc, long Yc, int Fi, char direction) {
 	}
 	
 	if (R > wheel_distance) {
-		speed = c_vmax;
+		speed = g_vmax;
 		accel = g_accel;
 		alpha = accel * wheel_distance / R;
 		w_max = speed * wheel_distance / R;
 		v_max = speed;
 	} else {
-		speed = c_omega;
+		speed = g_omega;
 		alpha = g_alpha;
 		accel = alpha * R / wheel_distance;
 		w_max = speed;
@@ -921,13 +899,13 @@ void cmd_curve_rel(int R, int Fi) {
 	if (R > wheel_distance) {
 		accel = g_accel;
 		alpha = accel * wheel_distance / R;
-		w_max = c_vmax * wheel_distance / R;
-		v_max = c_vmax;
+		w_max = g_vmax * wheel_distance / R;
+		v_max = g_vmax;
 	} else {
 		alpha = g_alpha;
 		accel = alpha * R / wheel_distance;
-		w_max = c_omega;
-		v_max = c_omega * R / wheel_distance;
+		w_max = g_omega;
+		v_max = g_omega * R / wheel_distance;
 	}
 	
 	struct trapezoid trap_t, trap_d;
@@ -1006,8 +984,8 @@ void cmd_diff_drive(int x, int y, int Fi, int direction) {
 			w = RAD_TO_INC_ANGLE(c_ka * a + c_kb * b);
 		}
 		
-		v_max = c_vmax;
-		w_max = c_omega;
+		v_max = g_vmax;
+		w_max = g_omega;
 		
 		// dbg(printf("w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", 
 			// w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
@@ -1059,7 +1037,7 @@ void cmd_move(long x, long y, int radius, char direction) {
 	move_cmd_next.active = 0;
 	float speed = current_speed;
 	float rotation_speed = angular_speed; /* [inc/ms] */
-	float min_speed = c_speed_drop * c_vmax;
+	float min_speed = c_speed_drop * g_vmax;
 	
 	
 	start_command();
@@ -1096,12 +1074,12 @@ void cmd_move(long x, long y, int radius, char direction) {
 	
 	float t;
 	
-	v = c_vmax;
+	v = g_vmax;
 	w = w_div_v * v;
-	if(w > c_omega) {
-		w = c_omega;
+	if(w > g_omega) {
+		w = g_omega;
 		v = v_div_w * w;
-		if(v > c_vmax) {
+		if(v > g_vmax) {
 			report_status(STATUS_ERROR);
 			return;
 		}
@@ -1157,12 +1135,12 @@ void cmd_move(long x, long y, int radius, char direction) {
 					
 					// next cmd
 					if(move_cmd_next.active) {
-						v = c_vmax;
+						v = g_vmax;
 						w = w_div_v * v;
-						if(w > c_omega) {
-							w = c_omega;
+						if(w > g_omega) {
+							w = g_omega;
 							v = v_div_w * w;
-							if(v > c_vmax) {
+							if(v > g_vmax) {
 								report_status(STATUS_ERROR);
 								return;
 							}
@@ -1190,7 +1168,7 @@ void cmd_move(long x, long y, int radius, char direction) {
 						xd = X - x;
 						yd = Y - y;
 						radius = move_cmd_next.radius;
-						min_speed = c_speed_drop * c_vmax;
+						min_speed = c_speed_drop * g_vmax;
 						slowdown_phase = 0;
 						continue;
 					} else {
@@ -1213,7 +1191,7 @@ void cmd_move(long x, long y, int radius, char direction) {
 				maxspeed_phase = 1;
 				// 0 -> vmax, 25 -> v
 				// vmax-v / 25 + v
-				float virt_max = c_vmax; //((v - c_vmax) * (float)abs_angle_diff / (float)DEG_TO_INC_ANGLE(c_angle_speedup)) + c_vmax;
+				float virt_max = g_vmax; //((v - g_vmax) * (float)abs_angle_diff / (float)DEG_TO_INC_ANGLE(c_angle_speedup)) + g_vmax;
 				if(abs_speed < virt_max) {
 					speed = dval(ss, minf(abs_speed+accel, virt_max));
 				} else {
@@ -1315,15 +1293,34 @@ void cmd_soft_stop(void) {
 	report_status(STATUS_IDLE);
 }
 
-void set_rotation_speed(unsigned char max_speed, unsigned char max_accel) {
-	c_omega = VMAX * max_speed / 256;
+void set_speed_accel(float v) {
+	g_vmax = v;
+	g_omega = 2 * g_vmax;
 	
-	if(c_omega < (VMAX * 161 / 256)) {
-		// in 500 ms speeds up to c_vmax
-		g_alpha = c_omega / (500 /*[ms]*/);
+	c_omega = g_omega * 256/VMAX;
+	c_vmax = g_vmax * 256/VMAX;
+	
+	if(c_accel == 0) {
+		g_accel = g_vmax / ((350-500) * (v / VMAX) + 500);
 	} else {
-		// in 375 ms speeds up to c_vmax
-		g_alpha = c_omega / (375 /*[ms]*/);
+		g_accel = g_vmax / c_accel;
+	}
+	if(c_alpha == 0) {
+		g_alpha = 2 * g_accel;
+	} else {
+		g_alpha = g_omega / c_alpha;
+	}
+}
+
+void set_rotation_speed(unsigned char max_speed, unsigned char max_accel) {
+	g_omega = VMAX * max_speed / 256;
+	c_omega = max_speed;
+	if(g_omega < (VMAX * 161 / 256)) {
+		// in 500 ms speeds up to g_vmax
+		g_alpha = g_omega / (500 /*[ms]*/);
+	} else {
+		// in 375 ms speeds up to g_vmax
+		g_alpha = g_omega / (375 /*[ms]*/);
 	}
 }
 
@@ -1355,11 +1352,11 @@ static void on_odometry_coefficients_changed() {
 }
 
 static void on_vmax_change() {
-	c_vmax = VMAX * (unsigned char)c_vmax / 256;
+	g_vmax = VMAX * (unsigned char)c_vmax / 256;
 }
 
 static void on_omega_change() {
-	c_omega = VMAX * (unsigned char)c_omega / 256;
+	g_omega = VMAX * (unsigned char)c_omega / 256;
 }
 
 static void on_encoder1_change() {
@@ -1372,9 +1369,9 @@ static void on_encoder2_change() {
 static void on_accel_changed() {
 	if(c_accel == 0) {
 		// default accel calc
-		g_accel = c_vmax / ((350-500) * (c_vmax / VMAX) + 600);
+		g_accel = g_vmax / ((350-500) * (g_vmax / VMAX) + 600);
 	} else {
-		g_accel = c_vmax / c_accel;
+		g_accel = g_vmax / c_accel;
 	}
 }
 
@@ -1383,7 +1380,7 @@ static void on_alpha_changed() {
 		// default alpha calc
 		g_alpha = 2 * g_accel;
 	} else {
-		g_alpha = c_omega / c_alpha;
+		g_alpha = g_omega / c_alpha;
 	}
 }
 
@@ -1404,7 +1401,7 @@ void regulator_init(void) {
 	
 	c_accel = 0;
 	c_alpha = 0;
-	
+	printf("regulator inited\n");
 	filter_init(&filter_speed1, 5, filter_speed_array1, filter_speed_coef);
 	filter_init(&filter_speed2, 5, filter_speed_array2, filter_speed_coef);
 	

@@ -35,6 +35,7 @@ hw_src := 		  \
 	timer.c       \
 	fuses.c  	  \
 	interrupt.c   \
+	bootloader.c  \
 	
 
 .PHONY: sim config
@@ -118,8 +119,10 @@ sim_dev:
 dev: sim_dev
 
 ipe_path:="/opt/microchip/mplabx/v5.15/mplab_platform/mplab_ipe/ipecmd.jar"
+
 upload:
 	mkdir -p tmp; cd tmp; sudo java -jar "$(ipe_path)" -TPPK3 -P33FJ128MC802 -M -F../AppImage.hex; sudo rm -rf tmp
+	
 clean:
 	rm -f const_motion.py config_const.js src/config_keys.h
 	find -name '*.o' -delete

@@ -17,6 +17,7 @@ void config_init(void) {
 	for(i=0; i < CONFIG_MAX; i++) {
 		config_callbacks[i] = 0;
 	}
+	config_load_hash();
 }
 
 static uint32_t load_uint32_bigendian(uint8_t* s) {
@@ -31,7 +32,12 @@ void config_load_from_stream(int length, uint8_t* stream) {
 		stream += 4;
 		int sign = *stream++;
 		int exponent = *stream++;
-		config_set_as_fixed_point(key, sign ? -val : val, exponent);
+		val = sign ? -val : val;
+		// printf("loading %d: %d %d = %f exp %d\n", key, sign, val, val / powf(10.0f, exponent), exponent);
+		config_set_as_fixed_point(key, val, exponent);
+		
+		// config_get_as_fixed_point(key, &val, &exponent, &sign);
+		// printf("loading %d: %d %d = %f exp %d\n", key, sign, val, val / powf(10.0f, exponent), exponent);
 		stream++;
 		length -= 8;
 	}
@@ -48,7 +54,7 @@ int config_get_as_stream(int key, uint8_t* stream) {
 	*stream++ = (uval >> 16) & 0xff;
 	*stream++ = (uval >> 8) & 0xff;
 	*stream++ = (uval >> 0) & 0xff;
-	*stream++ = sign;
+	*stream++ = sign == -1;
 	*stream++ = exponent;
 }
 
@@ -70,8 +76,11 @@ void config_load(void) {
 	if (eeprom_initialized()) {
 		int8_t* ptr = eeprom_get_ptr();
 		eeprom_load();
+		printf("load from eeprom\n");
 		config_load_from_stream(CONFIG_MAX*8, ptr);
+		printf("load from eeprom complete\n");
 	} else {
+		// printf("load defaults\n");
 		config_load_defaults();
 		config_save_to_program_memory();
 	}
@@ -89,7 +98,7 @@ uint8_t config_get_key(int16_t hash) {
 
 void config_load_hash_map(int16_t* hash) {
 	int i;
-	for(i=0; i<CONFIG_MAX; i++){
+	for(i=0; i < CONFIG_MAX; i++){
 		config_hash_map[i] = hash[i];
 	}
 }
@@ -124,10 +133,10 @@ int config_get_as_fixed_point(int key, int32_t* value, int *exponent, int *sgn) 
 		val = config_get_f(key);
 	}
 	
-	int fract_numbers = MAX_EXPONENT_BITS - ( (int)log10(fabsf(val)) + 1 );	
+	int fract_numbers = MAX_EXPONENT_BITS - ( (int)log10(fabsf(maxf(1,val))) + 1 );	
 	float exp = fract_numbers;
 	*value = val * powf(10.0f, exp);
-	*sgn = sign(val);
+	*sgn = sign(val) == -1;
 	*exponent = fract_numbers;
 	return 1;
 }

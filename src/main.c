@@ -44,8 +44,7 @@ int main(void) {
 		#endif
 		command = pkt->type;
 		reset_stuck();
-		switch(command)
-		{
+		switch(command) {
 			case CMD_SET_POSITION_AND_ORIENTATION:
 				// x [mm], y [mm], orientation
 				x = get_word();
@@ -98,6 +97,12 @@ int main(void) {
 				end_packet();
 				break;
 			}
+			
+			case CMD_SAVE_CONFIG: {
+				config_save_to_program_memory();
+				break;
+			}
+			
 			case CMD_SEND_STATUS_AND_POSITION:
 				// read status and position
 				send_status_and_position();

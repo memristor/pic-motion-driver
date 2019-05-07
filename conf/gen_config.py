@@ -5,7 +5,7 @@
 import sys
 sys.dont_write_bytecode = True
 
-import importlib
+import importlib, textwrap
 if len(sys.argv) >= 3:
 	config_for_robot = sys.argv[2]
 else:
@@ -110,10 +110,12 @@ def gen_mcu_code():
 		s += '\tconfig_set_f(' + prefix + kv[0].upper() + ', ' + str(float(kv[1])) + 'f);\n'
 		hash_it(kv[0])
 	
-	s += '\tint16_t hash_map[] = ' + str(hash_map).replace('[','{').replace(']','}') + ';\n'
-	s += '\tconfig_load_hash_map(hash_map);\n'
 	s += '}\n'
-	
+	s += 'static inline void config_load_hash(void) {\n'
+	hashmap = str(hash_map).replace('[','{').replace(']','}') + ';\n';
+	s += '\tint16_t hash_map[] = ' + '\n\t\t'.join(textwrap.wrap(hashmap, 80)) + '\n'
+	s += '\tconfig_load_hash_map(hash_map);\n'
+	s += '}\n';
 		
 	if len(hash_map) != len(set(hash_map)):
 		cnt = Counter(hash_map)

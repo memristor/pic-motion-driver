@@ -1,6 +1,6 @@
 #include "hw.h"
 #include "../bootloader.h"
-
+#include <unistd.h>
 
 /*
 Available builtin asm substitutes:
@@ -14,17 +14,28 @@ Available builtin asm substitutes:
 
 
 // const uint8_t space[512] __attribute__((space(psv), address(0xfc00*3)));
+uint8_t eeprom_memory[EEPROM_SIZE];
+char* filename = "eeprom.bin";
 int eeprom_initialized() {
+	if( access( filename, F_OK ) != -1 ) {
+		return 1;
+	}
 	return 0;
 }
 void eeprom_save() {
 	// save to file
+	FILE* file = fopen(filename, "w");
+	fwrite(eeprom_memory, 1, EEPROM_SIZE, file);
+	fclose(file);
 }
 void eeprom_load() {
 	// load from file
+	FILE* file = fopen(filename, "r");
+	fread(eeprom_memory, 1, EEPROM_SIZE, file);
+	fclose(file);
 }
 int8_t* eeprom_get_ptr() {
-	return 0;
+	return eeprom_memory;
 }
 
 void BOOT bootloader_start() {
