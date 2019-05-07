@@ -14,8 +14,9 @@ int main(char argc, char* argv[]) {
 int main(void) {
 #endif
 
-	int16_t tmpX, tmpY, tmp, tmpO;
+	int16_t x, y, tmp, angle, distance;
 	char command, v, direction;
+	int radius;
 	
 	// printf("%ld\n", clipl2(7, -2500));
 	// printf("%ld\n", clipl2(7, 2500));
@@ -47,10 +48,10 @@ int main(void) {
 		{
 			case CMD_SET_POSITION_AND_ORIENTATION:
 				// x [mm], y [mm], orientation
-				tmpX = get_word();
-				tmpY = get_word();
-				tmpO = get_word();
-				set_position(tmpX, tmpY, tmpO);
+				x = get_word();
+				y = get_word();
+				angle = get_word();
+				set_position(x, y, angle);
 				break;
 			
 			case CMD_SET_CONFIG:
@@ -73,20 +74,20 @@ int main(void) {
 			}
 			
 			case CMD_SET_CONFIG_HASH: {
-				int hash = get_word();
+				int hash, exp, key;
+				hash = get_word();
 				int32_t val = get_long();
-				int exp=get_byte();
-				int key = config_get_key(hash);
+				exp = get_byte();
+				key = config_get_key(hash);
 				config_set_as_fixed_point(key, val, exp);
 				break;
 			}
 				
 			case CMD_GET_CONFIG_HASH: {
-				int hash = get_word();
 				uint32_t val;
-				int exponent;
-				int sign;
-				int key = config_get_key(hash);
+				int exponent, sign, hash, key;
+				hash = get_word();
+				key = config_get_key(hash);
 				config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
 				
 				start_packet(CMD_GET_CONFIG);
@@ -116,66 +117,67 @@ int main(void) {
 				
 			case CMD_FORWARD:
 				// move forward [mm]
-				tmp = get_word();
-				cmd_forward(tmp);
+				distance = get_word();
+				cmd_forward(distance);
 				break;
 				
 			case CMD_FORWARD_LAZY:
-				tmp = get_word();
+				distance = get_word();
 				v = get_byte();
-				cmd_forward_lazy(tmp, v);
+				cmd_forward_lazy(distance, v);
 				break;
 
 				
 			case CMD_ABSOLUTE_ROTATE:
 				// absolute angle [degrees]
-				tmp = get_word();
-				cmd_absrot(tmp);
+				angle = get_word();
+				cmd_absrot(angle);
 				break;
 
 			case CMD_RELATIVE_ROTATE:
 				// relative angle [degrees]
-				tmp = get_word();
-				cmd_turn(tmp);
+				angle = get_word();
+				cmd_turn(angle);
 				break;
 				
 			case CMD_TURN_AND_GO:
 				// rotate to and then move to point (Xc, Yc, v, direction) [mm]
-				tmpX = get_word();
-				tmpY = get_word();
+				x = get_word();
+				y = get_word();
 				direction = get_byte(); // + means forward, - means backward
-				cmd_goto(tmpX, tmpY, direction); //(x, y, end_speed, direction)
+				cmd_goto(x, y, direction); //(x, y, end_speed, direction)
 				break;
 				     
 			case CMD_CURVE:
-				tmpX = get_word();
-				tmpY = get_word();
-				tmpO = get_word();
-				tmp = get_byte();
-				cmd_curve(tmpX, tmpY, tmpO, tmp);
+				x = get_word();
+				y = get_word();
+				angle = get_word();
+				direction = get_byte();
+				cmd_curve(x, y, angle, direction);
 				break;
 				
 			case CMD_CURVE_RELATIVE:
-				tmpX = get_word();
-				tmpO = get_word();
-				cmd_curve_rel(tmpX, tmpO);
+				x = get_word();
+				angle = get_word();
+				cmd_curve_rel(x, angle);
 				break;
 				
 			case CMD_DIFF_DRIVE:
-				tmpX = get_word();
-				tmpY = get_word();
-				tmpO = get_word();
-				cmd_diff_drive( tmpX, tmpY, tmpO );
+				x = get_word();
+				y = get_word();
+				angle = get_word();
+				direction = get_byte();
+				cmd_diff_drive( x, y, angle, direction );
 				break;
 			
 			case CMD_MOVE_TO: {
 				// x [mm], y [mm], direction {-1 - backwards, 0 - pick closest, 1 - forward}
-				tmpX = get_word();
-				tmpY = get_word();
-				int radius = get_word();
-				int direction = get_byte();
+				x = get_word();
+				y = get_word();
+				radius = get_word();
+				direction = get_byte();
 				
-				cmd_move(tmpX, tmpY, radius, direction);
+				cmd_move(x, y, radius, direction);
 				break;
 			}
 			case CMD_HARD_STOP:
@@ -220,16 +222,16 @@ int main(void) {
 			*/
 			
 			case CMD_MOTOR: {
-				tmpX = get_word();
-				tmpY = get_word();
-				cmd_motor_const(tmpX, tmpY);
+				x = get_word();
+				y = get_word();
+				cmd_motor_const(x, y);
 				break;
 			}
 			
 			case CMD_KEEP_SPEED: {
-				tmpX = (int16_t)get_word();
-				tmpY = (int16_t)get_word();
-				cmd_speed_const(tmpX, tmpY);
+				x = (int16_t)get_word();
+				y = (int16_t)get_word();
+				cmd_speed_const(x, y);
 				break;
 			}
 			

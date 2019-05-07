@@ -105,23 +105,8 @@ void regulator_interrupt(void) {
 	
 	// keep speed for some time if interrupted
 	if(keep_count > 0) {
-		
-		// keep_rotation_acc += keep_rotation;
-		// keep_speed_acc += keep_speed;
-		
-		// int16_t k_rot = keep_rotation_acc;
-		// int16_t k_speed = keep_speed_acc;
-		
-		// t_ref += k_rot;
-		// d_ref += k_speed;
 		t_ref += trapezoid_set_time(&keep_moving_trap_t, c_keep_count - keep_count);
 		d_ref += trapezoid_set_time(&keep_moving_trap_d, c_keep_count - keep_count);
-		
-		// keep_rotation_acc -= k_rot;
-		// keep_speed_acc -= k_speed;
-		
-		// t_ref += keep_rotation;
-		// d_ref += keep_speed;
 		
 		// trapezoid reduction
 		if(--keep_count == 0) {
@@ -971,17 +956,21 @@ void cmd_curve_rel(int R, int Fi) {
 	end_command();
 }
 
-void cmd_diff_drive(int x, int y, int Fi) {
-	t_ref = orientation;
-	d_ref = L;
-	dbg(printf("x: %d, y: %d, fi: %d\n",x,y,Fi);)
+void cmd_diff_drive(int x, int y, int Fi, int direction) {
 	float w_max=0,v_max=0;
 	float a, b, cur_theta, goal_theta, theta, angle_to_heading;
 	double v,w, v_old=0, w_old=0;
 	int d;
 	long dist;
+	
 	start_command();
 	report_status(STATUS_MOVING);
+	
+	t_ref = orientation;
+	d_ref = L;
+	// dbg(printf("x: %d, y: %d, fi: %d\n",x,y,Fi);)
+	
+	direction = sign(direction);
 	
 	while(1) {
 		
@@ -990,14 +979,13 @@ void cmd_diff_drive(int x, int y, int Fi) {
 		}
 		
 		angle_to_heading = atan2(y-(int)Y, x-(int)X);
-		cur_theta = INC_TO_RAD_ANGLE(orientation);
+		cur_theta = INC_TO_RAD_ANGLE(orientation) + (direction < 0 ? 3.14 : 0);
+		cur_theta = rad_angle_range_normalize(cur_theta);
 		a = angle_to_heading - cur_theta;
 		
 		goal_theta = DEG_TO_RAD_ANGLE( Fi );
 		theta = rad_angle_range_normalize( cur_theta - goal_theta );
 		b = -(theta + a); // goal_theta - angle_to_heading
-		
-		int direction = 1;
 		
 		d = get_distance_to(x,y);
 		a = rad_angle_range_normalize(a);
@@ -1021,9 +1009,10 @@ void cmd_diff_drive(int x, int y, int Fi) {
 		v_max = c_vmax;
 		w_max = c_omega;
 		
-		dbg(printf("w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", 
-			w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
+		// dbg(printf("w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", 
+			// w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
 		
+		// limitations
 		float ratio;
 		if (absd(v) > v_max) {
 			ratio = v_max / absd(v);
@@ -1046,10 +1035,12 @@ void cmd_diff_drive(int x, int y, int Fi) {
 		w = clipd_margin(w_old, g_alpha, w);
 		v = clipd_margin(v_old, g_accel, v);
 		
-		dbg(printf("- w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", 
-			w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
+		// dbg(printf("- w_max: (%f %lf), v_max: (%f %lf)   cur_theta: %f   angle_to_heading: %f\n", 
+			// w_max, w, v_max, v, RAD_TO_DEG_ANGLE(cur_theta), RAD_TO_DEG_ANGLE(angle_to_heading));)
+			
 		t_ref += w;
 		d_ref += v;
+		
 		v_old = v;
 		w_old = w;
 		

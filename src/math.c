@@ -132,6 +132,7 @@ float max3f(float a, float b, float c) {
 	}
 }
 
+// trapezoid
 static void trapezoid_init_end(struct trapezoid* trap, float v1, float v2, float v3, float accel) {
 	trap->v1 = v1;
 	trap->v2 = v2;
@@ -145,7 +146,6 @@ static void trapezoid_init_end(struct trapezoid* trap, float v1, float v2, float
 	trap->accel = accel;
 }
 
-// trapezoid
 int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, float v3, float accel) {
 	int32_t L1,L2,L3;
 	dist = absl(dist);
@@ -172,7 +172,7 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 	int32_t dist_max = trap->v1*trap->T1 + (int32_t)trap->s1 * accel*trap->T1*trap->T1/2 + 
 			v2*trap->T2 + v2*trap->T3 - (int32_t)trap->s3 * accel*trap->T3*trap->T3/2;
 	trap->ref_err = dist - dist_max;
-	printf("ref err: %d : (%d %d) : %f %d %d\n", (int)trap->ref_err, (int)dist, (int)dist_max, v2, trap->s1, trap->s3);
+	// printf("ref err: %d : (%d %d) : %f %d %d\n", (int)trap->ref_err, (int)dist, (int)dist_max, v2, trap->s1, trap->s3);
 	return 1;
 }
 

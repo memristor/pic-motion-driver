@@ -105,7 +105,7 @@ void cmd_move(long x, long y, int radius, char direction);
 void cmd_stop(void);
 void cmd_motor_const(int a, int b);
 void cmd_speed_const(int a, int b);
-void cmd_diff_drive(int x,int y, int fi);
+void cmd_diff_drive(int x,int y, int fi, int direction);
 
 void cmd_smooth_stop(void);
 void cmd_soft_stop(void);
