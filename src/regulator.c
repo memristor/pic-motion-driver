@@ -54,6 +54,8 @@ static volatile ldouble prev_positionR = 0;
 
 static float keep_rotation_acc = 0, keep_speed_acc = 0;
 static float keep_rotation = 0, keep_speed = 0;
+struct trapezoid keep_moving_trap_t;
+struct trapezoid keep_moving_trap_d;
 
 static long speed_mode_error_accum1 = 0;
 static long speed_mode_error_accum2 = 0;
@@ -104,17 +106,19 @@ void regulator_interrupt(void) {
 	// keep speed for some time if interrupted
 	if(keep_count > 0) {
 		
-		keep_rotation_acc += keep_rotation;
-		keep_speed_acc += keep_speed;
+		// keep_rotation_acc += keep_rotation;
+		// keep_speed_acc += keep_speed;
 		
-		int16_t k_rot = keep_rotation_acc;
-		int16_t k_speed = keep_speed_acc;
+		// int16_t k_rot = keep_rotation_acc;
+		// int16_t k_speed = keep_speed_acc;
 		
-		t_ref += k_rot;
-		d_ref += k_speed;
+		// t_ref += k_rot;
+		// d_ref += k_speed;
+		t_ref += trapezoid_set_time(&keep_moving_trap_t, c_keep_count - keep_count);
+		d_ref += trapezoid_set_time(&keep_moving_trap_d, c_keep_count - keep_count);
 		
-		keep_rotation_acc -= k_rot;
-		keep_speed_acc -= k_speed;
+		// keep_rotation_acc -= k_rot;
+		// keep_speed_acc -= k_speed;
 		
 		// t_ref += keep_rotation;
 		// d_ref += keep_speed;
@@ -432,11 +436,12 @@ unsigned long wait_for_regulator() {
 	unsigned long t = sys_time;
 	while(sys_time == t) {
 		#ifdef SIM
-			usleep(10);
+		usleep(10);
 		#endif
 	}
 	return sys_time;
 }
+
 
 void keep_moving() {
 	keep_count = c_keep_count;
@@ -448,6 +453,8 @@ void keep_moving() {
 	printf("keep moving: %f:%f  %f:%f\n", current_speed, filt_speed, angular_speed, filt_ang_speed);
 	keep_speed = filt_speed;
 	keep_rotation = filt_ang_speed;
+	trapezoid_init_from_time(&keep_moving_trap_d, keep_count, filt_speed, filt_speed, 0, g_accel);
+	trapezoid_init_from_time(&keep_moving_trap_t, keep_count, filt_ang_speed, filt_ang_speed, 0, g_alpha);
 }
 
 void set_position(int x, int y, int orient_angle) {
@@ -647,7 +654,6 @@ static char get_command(void)
 	return OK;
 }
 
-
 void cmd_motor_const(int a, int b) {
 	char old_val = c_motor_connected;
 	char old_stuck = c_enable_stuck;
@@ -797,7 +803,7 @@ void cmd_forward(int length) {
 	d_ref = L;
 	
 	struct trapezoid trap;
-	trapezoid_init(&trap, absl(MM_TO_INC(length)), current_speed * s, c_vmax, VMAX*c_end_speed/256, g_accel);
+	trapezoid_init(&trap, absl(MM_TO_INC(length)), current_speed*s, c_vmax, VMAX*c_end_speed/256, g_accel);
 	
 	t = t0 = sys_time;
 	D0 = d_ref;
@@ -836,7 +842,7 @@ char turn_inc(int32_t angle) {
 	s = sign(angle);
 	
 	struct trapezoid trap;
-	trapezoid_init(&trap, absl(angle), 0, c_omega, VMAX*c_end_speed/256, g_alpha);
+	trapezoid_init(&trap, absl(angle), filt_ang_speed*s, c_omega, VMAX*c_end_speed/256, g_alpha);
 	
 	t = t0 = sys_time;
 	T0 = t_ref;
@@ -889,8 +895,8 @@ void cmd_curve(long Xc, long Yc, int Fi, char direction) {
 	}
 	
 	struct trapezoid trap_d, trap_t;
-	trapezoid_init(&trap_t, absl(DEG_TO_INC_ANGLE(Fi)), 0, w_max, VMAX*c_end_speed/256, alpha);
-	trapezoid_init(&trap_d, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), 0, v_max, VMAX*c_end_speed/256, accel);
+	trapezoid_init(&trap_t, absl(DEG_TO_INC_ANGLE(Fi)), filt_ang_speed*s*direction, w_max, VMAX*c_end_speed/256, alpha);
+	trapezoid_init(&trap_d, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), filt_speed*direction, v_max, VMAX*c_end_speed/256, accel);
 	
 	t = t0 = sys_time;
 	angle_ref = t_ref;
@@ -940,8 +946,8 @@ void cmd_curve_rel(int R, int Fi) {
 	}
 	
 	struct trapezoid trap_t, trap_d;
-	trapezoid_init(&trap_t, absl(DEG_TO_INC_ANGLE(Fi)), 0, w_max, VMAX*c_end_speed/256, alpha);
-	trapezoid_init(&trap_d, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), 0, v_max, VMAX*c_end_speed/256, accel);
+	trapezoid_init(&trap_t, absl(DEG_TO_INC_ANGLE(Fi)), filt_ang_speed*direction*s, w_max, VMAX*c_end_speed/256, alpha);
+	trapezoid_init(&trap_d, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), filt_speed*direction, v_max, VMAX*c_end_speed/256, accel);
 	
 	t = t0 = sys_time;
 	angle_ref = t_ref;

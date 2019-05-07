@@ -53,13 +53,14 @@ proc_def(def_max_decl, max);
 struct trapezoid {
 	int16_t T1, T2, T3;
 	int32_t t0,t1,t2,t3;
-	int32_t dist;
+	int32_t dist,ref_err;
 	char s1,s3;
 	float v1,v2,v3;
 	float accel;
 	float v,s;
 };
 int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, float v3, float accel);
+int trapezoid_init_from_time(struct trapezoid* trap, int16_t T, float v1, float v2, float v3, float accel);
 float trapezoid_set_time(struct trapezoid* trap, int32_t t);
 
 

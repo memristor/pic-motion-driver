@@ -132,13 +132,24 @@ float max3f(float a, float b, float c) {
 	}
 }
 
+static void trapezoid_init_end(struct trapezoid* trap, float v1, float v2, float v3, float accel) {
+	trap->v1 = v1;
+	trap->v2 = v2;
+	trap->v3 = v3;
+	trap->s1 = sign(v2 - v1);
+	trap->s3 = sign(v2 - v3);
+	trap->t0 = 0;
+	trap->t1 = trap->t0 + trap->T1;
+	trap->t2 = trap->t1 + trap->T2;
+	trap->t3 = trap->t2 + trap->T3;
+	trap->accel = accel;
+}
+
 // trapezoid
 int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, float v3, float accel) {
 	int32_t L1,L2,L3;
-	
+	dist = absl(dist);
 	trap->dist = dist;
-	trap->accel = accel;
-	
 	trap->T1 = abs(v2 - v1)/accel;
 	L1 = v1*trap->T1 + accel*trap->T1*trap->T1/2;
 	trap->T3 = abs(v2 - v3)/accel;
@@ -149,7 +160,7 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 		trap->T2 = L2 / v2;
 	} else { // triangle
 		trap->T2 = 0;
-		v2 = sqrt(accel*dist + (v1*v1 + v3*v3));
+		v2 = sqrt(accel*dist + (v1*v1 + v3*v3)) * sign(v2);
 		// if( (v2 < v1) || (v2 < v3) ) {
 			// return 0; // mission impossible
 		// }
@@ -157,30 +168,19 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 		trap->T3 = abs(v2 - v3) / accel;
 	}
 	
-	// TODO: precision angles
-	// long max_ref = alpha * T1*T1/2 + w_max * T2 + alpha * T3*T3/2;
-	// long ref_err = absl(Fi_total) - max_ref;
-	// t_ref = orig + sign * (angle_ref + ref_err * (t-t0)/T);
-	
-	// TODO: precision
-	// long orig = d_ref;
-	// long ref = 0;
-	// long ref_max = accel*T1*T1/2 + vmax*T2 + accel * T3*T3/2;
-	// long ref_err = (L_dist - ref_max);
-	
-	// d_ref = orig + direction * (ref + ref_err*(t-t0) / T);
-	
-	trap->v1 = v1;
-	trap->v2 = v2;
-	trap->v3 = v3;
-	trap->s1 = sign(v2 - v1);
-	trap->s3 = sign(v2 - v3);
-	// trap->t0 = sys_time;
-	trap->t0 = 0;
-	trap->t1 = trap->t0 + trap->T1;
-	trap->t2 = trap->t1 + trap->T2;
-	trap->t3 = trap->t2 + trap->T3;
+	trapezoid_init_end(trap, v1, v2, v3, accel);
+	int32_t dist_max = trap->v1*trap->T1 + (int32_t)trap->s1 * accel*trap->T1*trap->T1/2 + 
+			v2*trap->T2 + v2*trap->T3 - (int32_t)trap->s3 * accel*trap->T3*trap->T3/2;
+	trap->ref_err = dist - dist_max;
+	printf("ref err: %d : (%d %d) : %f %d %d\n", (int)trap->ref_err, (int)dist, (int)dist_max, v2, trap->s1, trap->s3);
 	return 1;
+}
+
+int trapezoid_init_from_time(struct trapezoid* trap, int16_t T, float v1, float v2, float v3, float accel) {
+	trap->T1 = abs(v2-v1)/accel;
+	trap->T3 = abs(v2-v3)/accel;
+	trap->T2 = T - (trap->T1 + trap->T3);
+	trapezoid_init_end(trap, v1,v2,v3,accel);
 }
 
 float trapezoid_set_time(struct trapezoid* trap, int32_t t) {
@@ -200,6 +200,13 @@ float trapezoid_set_time(struct trapezoid* trap, int32_t t) {
 			trap->v2*trap->T2 + trap->v2*dt +
 			- (int32_t)trap->s3 * trap->accel*dt*dt/2;
 	}
+	
+	if(t < trap->t3) {
+		int32_t ref = trap->ref_err * (t - trap->t0) / (trap->t3 - trap->t0);
+		// trap->v += ref;
+		trap->s += ref;
+	}
+	
 	return trap->v;
 }
 
