@@ -156,7 +156,20 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 		trap->T1 = abs(v2 - v1) / accel;
 		trap->T3 = abs(v2 - v3) / accel;
 	}
-
+	
+	// TODO: precision angles
+	// long max_ref = alpha * T1*T1/2 + w_max * T2 + alpha * T3*T3/2;
+	// long ref_err = absl(Fi_total) - max_ref;
+	// t_ref = orig + sign * (angle_ref + ref_err * (t-t0)/T);
+	
+	// TODO: precision
+	// long orig = d_ref;
+	// long ref = 0;
+	// long ref_max = accel*T1*T1/2 + vmax*T2 + accel * T3*T3/2;
+	// long ref_err = (L_dist - ref_max);
+	
+	// d_ref = orig + direction * (ref + ref_err*(t-t0) / T);
+	
 	trap->v1 = v1;
 	trap->v2 = v2;
 	trap->v3 = v3;

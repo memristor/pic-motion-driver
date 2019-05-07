@@ -707,26 +707,26 @@ void cmd_speed_const(int a, int b) {
 
 // simple go to point (Xd, Yd)
 void cmd_goto(int Xd, int Yd, char direction) {
-	start_command();
-	report_status(STATUS_MOVING);
-	long t, t0, t1, t2, t3;
-	long T1, T2, T3, D0, D1, D2;
-	long L_dist, L0, L1, L2, L3;
-	float v_peak, v_end, v_ref, v0;
+	long D0, t, t0;
 	int length;
 	long long int Xdlong, Ydlong;
+	float vmax = c_vmax, accel = g_accel;
 	
+	start_command();
+	report_status(STATUS_MOVING);
+	
+	d_ref=L;
 	Xdlong = MM_TO_INC(Xd);
 	Ydlong = MM_TO_INC(Yd);
-	d_ref=L;
-	v0 = 0;
-	direction = (direction >= 0 ? 1 : -1);
+	
+	direction = sign(direction);
 	block(1);
+	
 	// turn to end point, find angle to turn
 	length = get_distance_to(Xd, Yd);
 	if(length > 2) {
-		rotate_absolute_angle_inc( 
-			RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) + 
+		rotate_absolute_angle_inc(
+			RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) +
 			DEG_TO_INC_ANGLE(direction < 0 ? 180 : 0)
 		);
 	} else {
@@ -735,72 +735,22 @@ void cmd_goto(int Xd, int Yd, char direction) {
 		return;
 	}
 	block(0);
-	v_end = VMAX * c_end_speed / 256;
-	L_dist = MM_TO_INC(length);
 	
-	float vmax;
-	
-	if(c_debug) {
-		start_packet(MSG_DEBUG);
-			put_long(L_dist);
-		end_packet();
-	}
-	
-	float accel = g_accel;
 	if (accel == 0) return;
-	// calculate phase durations
-	T1 = maxf(0, c_vmax - v0)/accel + 0.5;
-	L0 = L;
-	L1 = current_speed*T1 + accel * T1*T1/2;
-
-	T3 = maxf(0, c_vmax - v_end)/accel + 0.5;
-	L3 = c_vmax*T3 - accel * T3*T3/2;
-
-	if( (L1 + L3) < L_dist ) {
-		// can reach c_vmax
-		L2 = L_dist - L1 - L3;
-		// T2 = ceil(L2 / c_vmax);
-		T2 = L2/c_vmax + 0.5;
-		vmax = c_vmax;
-	} else {
-		// can't reach c_vmax
-		T2 = 0;
-		v_peak = sqrt(accel*L_dist + (current_speed*current_speed + v_end*v_end)/2);
-		if( (v_peak < current_speed) || (v_peak < v_end) ) {
-			report_status(STATUS_ERROR);
-			return; //mission impossible
-		}
-		vmax = v_peak;
-		T1 = (v_peak - current_speed)/accel + 0.5;
-		T3 = (v_peak - v_end)/accel + 0.5;
-	}
-
 	t = t0 = sys_time;
-	t1 = t0 + T1;
-	t2 = t1 + T2;
-	t3 = t2 + T3;
-	
-	long T = T1+T2+T3;
-	if(T <= 10) {
-		end_command();
-		return;
-	}
-	
 	D0 = d_ref;
-	long orig = d_ref;
-	long ref = 0;
-	long ref_max = accel*T1*T1/2 + vmax*T2 + accel * T3*T3/2;
-	long ref_err = (L_dist - ref_max);
-	// ref_err = 0;
 	
-	while(t <= t3) {
+	struct trapezoid trap;
+	trapezoid_init(&trap, absl(MM_TO_INC(length)), 0, vmax, VMAX*c_end_speed/256, g_accel);
+	
+	while(t <= trap.t3+t0) {
 		t = sys_time;
 		if(get_command() == ERROR) {
 			break;
 		}
 		
 		// refresh angle reference
-		if(t <= t2) {
+		if(t <= trap.t2+t0) {
 			if(direction > 0) {
 				t_ref = RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong));
 			} else {
@@ -808,24 +758,15 @@ void cmd_goto(int Xd, int Yd, char direction) {
 			}
 		}
 		
-		if(t <= t1) { // speeding up phase
-			ref = accel*(t-t0)*(t-t0)/2;
-		} else if(t <= t2) { // constant speed phase
-			ref = (accel*T1*T1/2) + vmax*(t-t1);
-		} else if(t <= t3) { // slowing down phase
-			ref = (accel*T1*T1/2) + vmax*T2 + (vmax*(t-t2) - accel*(t-t2)*(t-t2)/2);
-		}
-		d_ref = orig + direction * (ref + ref_err*(t-t0) / T);
+		trapezoid_set_time(&trap, t-t0);
+		d_ref = D0 + direction * trap.s;
 		wait_for_regulator();
 	}
-
 	end_command();
 }
 
-
 void cmd_forward_lazy(int length, uint8_t speed) {
-	long L_dist = MM_TO_INC(length);
-	long end = d_ref+L_dist;
+	long end = d_ref+MM_TO_INC(length);
 	start_command();
 	report_status(STATUS_MOVING);
 	long add_inc = VMAX * speed / 255;
@@ -844,78 +785,31 @@ void cmd_forward_lazy(int length, uint8_t speed) {
 	end_command();
 }
 
-
-
-
-
 // move robot forward in direction its facing
 void cmd_forward(int length) {
-	char s,s1;
-	long t, t0, t1, t2, t3;
-	long L_dist, L0, L1, L2, L3;
-	long D0, D1, D2, T1, T2, T3;
-	float v_peak, v_end, v0, v_ref;
-	float accel = g_accel, vmax = c_vmax;
+	char s;
+	long D0, t, t0;
 	
 	start_command();
 	report_status(STATUS_MOVING);
 	
-	d_ref = L;
-	v_ref = current_speed;
-	v0 = v_ref;
-	v_end = VMAX * c_end_speed/256;
-	L_dist = MM_TO_INC(length);
-	
 	s = sign(length);
-	s1 = sign(vmax - v_ref);
-	T1 = abs(vmax - v_ref)/accel;
-	L0 = L;
-	L1 = v_ref * T1 + accel*T1*T1/2;
+	d_ref = L;
 	
-	T3 = maxf(0, vmax - v_end)/accel;
-	L3 = vmax * T3 - accel*T3*T3/2;
-	
-	if((L1 + L3) < (long)s * L_dist) {
-		// can reach
-		L2 = s * L_dist - L1 - L3;
-		T2 = L2 / vmax;
-	} else {
-		// can't reach vmax
-		T2 = 0;
-		v_peak = sqrt(s*accel*L_dist + (v_ref*v_ref + v_end*v_end)/2);
-		if( (v_peak < v_ref) || (v_peak < v_end) ) {
-			report_status(STATUS_ERROR);
-			// printf("ERROR\n");
-			return; //mission impossible
-		}
-		
-		T1 = (v_peak - v_ref) / accel;
-		T3 = (v_peak - v_end) / accel;
-	}
+	struct trapezoid trap;
+	trapezoid_init(&trap, absl(MM_TO_INC(length)), current_speed * s, c_vmax, VMAX*c_end_speed/256, g_accel);
 	
 	t = t0 = sys_time;
-	t1 = t0 + T1;
-	t2 = t1 + T2;
-	t3 = t2 + T3;
 	D0 = d_ref;
-	// printf("forw times: %d,%d,%d total: %d %f\n", T1,T2,T3, T1+T2+T3, v_ref);
-	while(t < t3) {
+	while(t < trap.t3+t0) {
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
 			return;
 		}
 		
-		if(t <= t1) {
-			v_ref = v0 + accel*(t-t0);
-			D1 = D2 = d_ref = D0 + (long)s * (v0*(t-t0) + s1*accel*(t-t0)*(t-t0)/2);
-		} else if(t <= t2) {
-			v_ref = vmax;
-			D2 = d_ref = D1 + (long)s*vmax*(t-t1);
-		} else if(t <= t3) {
-			// v_ref = vmax - accel * (t-t2);
-			d_ref = D2 + (long)s * (v_ref*(t-t2) - accel*(t-t2)*(t-t2)/2);
-		}
+		trapezoid_set_time(&trap, t-t0);
+		d_ref = D0 + s * trap.s;
 		wait_for_regulator();
 	}
 	end_command();
@@ -934,267 +828,137 @@ char cmd_turn(int angle) {
 }
 
 char turn_inc(int32_t angle) {
-	long t, t0, t1, t2, t3;
-	long T1, T2, T3, Fi_total, Fi1;
-	double angle_ref, w_ref = 0;
-	char sign;
+	long T0, t, t0;
+	char s;
 
 	start_command();
 	report_status(STATUS_ROTATING);
+	s = sign(angle);
 	
-	sign = angle >= 0 ? 1 : -1;
-	Fi_total = angle;
+	struct trapezoid trap;
+	trapezoid_init(&trap, absl(angle), 0, c_omega, VMAX*c_end_speed/256, g_alpha);
 	
-	float w_max;
-	float alpha = g_alpha;
-	w_max = c_omega;
-	T1 = T3 = c_omega / alpha;
-	Fi1 = alpha * T1 * T1 / 2;
-	if(Fi1 > (sign * Fi_total / 2)) {
-		// triangle profile (speeds up to some speed and then slows down to 0)
-		Fi1 = sign  * Fi_total / 2;
-		T1 = T3 = sqrt(2 * Fi1 / alpha) + 0.5;
-		// a * T^2/2 = Fi
-		T2 = 0;
-		w_max = alpha * T1;
-	} else {
-		// trapezoid profile of speed graph (similar like triangle profile except there is period of constant speed in between)
-		T2 = (sign * Fi_total - 2 * Fi1) / c_omega + 0.5;
-		w_max = c_omega;
-	}
-	long T = T1+T2+T3;
-	if(T == 0) {
-		end_command();
-		return OK;
-	}
-	
-	long s = alpha * T1*T1/2 * 2 + T2 * w_max;
-	
-	if(c_debug) {
-		start_packet(MSG_DEBUG);
-			put_word(Fi_total);
-			put_word(s);
-		end_packet();
-		start_packet(MSG_DEBUG2);
-			put_word(T1);
-			put_word(T2);
-		end_packet();
-		
-	}
-	
-	long orig = t_ref;
-	// angle_ref = t_ref;
 	t = t0 = sys_time;
-	t1 = t0 + T1;
-	t2 = t1 + T2;
-	t3 = t2 + T3;
-	
-	long max_ref = alpha * T1*T1/2 + w_max * T2 + alpha * T3*T3/2;
-	long ref_err = absl(Fi_total) - max_ref;
-	// ref_err = 0;
-	dbg(printf("T BEF: %lf\n", angle_ref);)
-	dbg(printf("T PLAN: %ld => %lf\n", Fi_total, angle_ref+Fi_total);)
-
-	// printf("turn times: %d,%d,%d total: %d rots: %ld %ld %ld\n", T1,T2,T3, T1+T2+T3, Fi_total, Fi1, K1);
-	// double prev;
-	int c1,c2,c3;
-	w_ref = 0;
-	while(t <= t3) {
+	T0 = t_ref;
+	while(t < trap.t3+t0) {
 		t = sys_time;
+		
 		if(get_command() == ERROR) {
-			break;
+			return ERROR;
 		}
-
-		if(t <= t1) {
-			angle_ref = alpha * (t-t0)*(t-t0)/2;
-		} else if(t <= t2) {
-			angle_ref = alpha * T1*T1/2 + w_max * (t-t1);
-		} else if(t <= t3) {
-			angle_ref = alpha * T1*T1/2 + w_max * T2+ (w_max*(t-t2) - alpha * (t-t2)*(t-t2)/2);
-		}
-		t_ref = orig + sign * (angle_ref + ref_err * (t-t0)/T);
+		
+		trapezoid_set_time(&trap, t-t0);
+		t_ref = T0 + s * trap.s;
 		wait_for_regulator();
 	}
-	dbg(printf("T AFT: %lf\n", angle_ref);)
+	return OK;
 	end_command();
 }
 
 void cmd_curve(long Xc, long Yc, int Fi, char direction) {
-	double R, dist_ref, angle_ref, w_ref = 0, v_ref = 0;
-	uint32_t t, t0, t1, t2, t3;
-	int32_t T1, T2, T3;
+	double R, dist_ref, angle_ref;
+	float w_max, v_max, speed, accel, alpha;
+	uint32_t t, t0;
 	int8_t s;
 
 	start_command();
 	report_status(STATUS_MOVING);
 	
 	s = sign(Fi);
-	direction =  direction > 0 ? 1 : -1;
-	R = get_distance_to(Xc, Yc);
+	direction =  sign(direction);
+	R = get_distance_to(Xc, Yc) / 2;
 	if(R > 0) {
 		block(1);
-		rotate_absolute_angle_inc( RAD_TO_INC_ANGLE( atan2((int)Y-(int)Yc, (int)X-(int)Xc) ) + DEG_TO_INC_ANGLE(direction * s * 90) );
+		rotate_absolute_angle_inc( RAD_TO_INC_ANGLE( atan2((int)Y-(int)Yc, (int)X-(int)Xc) ) + 
+			DEG_TO_INC_ANGLE(direction * s * 90) );
 		block(0);
 	}
 	
-	float w_end, v_end, w_max, v_max, speed, accel;
-	int32_t L_dist;
 	if (R > wheel_distance) {
 		speed = c_vmax;
 		accel = g_accel;
+		alpha = accel * wheel_distance / R;
 		w_max = speed * wheel_distance / R;
 		v_max = speed;
-		L_dist = absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R));
 	} else {
 		speed = c_omega;
-		accel = g_alpha;
+		alpha = g_alpha;
+		accel = alpha * R / wheel_distance;
 		w_max = speed;
 		v_max = speed * R / wheel_distance;
-		L_dist = absl( DEG_TO_INC_ANGLE(Fi) );
 	}
 	
-	v_end = w_end = VMAX * c_end_speed / 255;
+	struct trapezoid trap_d, trap_t;
+	trapezoid_init(&trap_t, absl(DEG_TO_INC_ANGLE(Fi)), 0, w_max, VMAX*c_end_speed/256, alpha);
+	trapezoid_init(&trap_d, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), 0, v_max, VMAX*c_end_speed/256, accel);
 	
-	T1 = speed / accel;
-	T3 = (speed - v_end) / accel;
-	int32_t L1 = accel * T1 * T1 / 2;
-	
-	if(L1 > L_dist / 2) {
-		// triangle profile
-		L1 = L_dist / 2;
-		T1 = sqrt(2 * L1 / accel);
-		w_max = w_max * (accel * T1) / speed;
-		v_max = v_max * (accel * T1) / speed;
-		T3 = (v_max - v_end) / accel;
-		T2 = 0;
-	} else {
-		// trapezoid profile
-		T2 = (L_dist - 2*L1) / speed;
-	}
-
 	t = t0 = sys_time;
-	t1 = t0 + T1;
-	t2 = t1 + T2;
-	t3 = t2 + T3;
 	angle_ref = t_ref;
 	dist_ref = d_ref;
-	// printf("T BEF: %f\n", angle_ref);
-	// printf("T PLAN: %ld => %ld\n", Fi_total, (long)(angle_ref+Fi_total));
-	while(t <= t3) {
+
+	while(t <= trap_t.t3+t0) {
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
 			break;
 		}
-
-		if(t <= t1) {
-			w_ref = w_max * (t-t0)/T1;
-			v_ref = v_max * (t-t0)/T1;
-		} else if(t <= t2) {
-			w_ref = w_max;
-			v_ref = v_max;
-		} else if(t <= t3) {
-			w_ref = w_max - (w_max-w_end) * (t-t2)/T3;
-			v_ref = v_max - (v_max-v_end) * (t-t2)/T3;
-		}
 		
-		angle_ref += s * w_ref;
-		dist_ref += direction * absd(v_ref);
-		t_ref = angle_ref;
-		d_ref = dist_ref;
+		trapezoid_set_time(&trap_t, t-t0);
+		trapezoid_set_time(&trap_d, t-t0);
+		
+		t_ref = angle_ref + s * trap_t.s;
+		d_ref = dist_ref + direction * trap_d.s;
 		
 		wait_for_regulator();
 	}
-	// printf("T AFT: %f %ld\n", angle_ref, t_ref);
 	end_command();
 }
 
 void cmd_curve_rel(int R, int Fi) {
-	float dist_ref, angle_ref, w_ref = 0, v_ref = 0;
-	uint32_t t, t0, t1, t2, t3;
-	int32_t T1, T2, T3;
-	int8_t s;
+	double dist_ref, angle_ref;
+	float w_max, v_max, accel, alpha;
+	uint32_t t, t0;
+	int8_t s, direction;
 
 	start_command();
 	report_status(STATUS_MOVING);
 	
-	s = sign(R) * sign(Fi);
-	R = abs(R);
-	float w_max, v_max, speed, accel;
-	float w_end, v_end;
-	int32_t L_dist;
+	s = sign(R);
+	direction =  sign(Fi);
+	R = abs(R)/2;
+	
 	if (R > wheel_distance) {
-		speed = c_vmax;
 		accel = g_accel;
-		w_max = speed * wheel_distance / R;
-		v_max = speed;
-		L_dist = absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R));
+		alpha = accel * wheel_distance / R;
+		w_max = c_vmax * wheel_distance / R;
+		v_max = c_vmax;
 	} else {
-		speed = c_omega;
-		accel = g_alpha;
-		w_max = speed;
-		v_max = speed * R / wheel_distance;
-		L_dist = absl( DEG_TO_INC_ANGLE(Fi) );
+		alpha = g_alpha;
+		accel = alpha * R / wheel_distance;
+		w_max = c_omega;
+		v_max = c_omega * R / wheel_distance;
 	}
 	
-	v_end = w_end = VMAX * c_end_speed / 255;
+	struct trapezoid trap_t, trap_d;
+	trapezoid_init(&trap_t, absl(DEG_TO_INC_ANGLE(Fi)), 0, w_max, VMAX*c_end_speed/256, alpha);
+	trapezoid_init(&trap_d, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), 0, v_max, VMAX*c_end_speed/256, accel);
 	
-	if (accel == 0) {
-		end_command();
-		return;
-	}
-	
-	T1 = speed / accel;
-	T3 = (speed - v_end) / accel;
-	int32_t L1 = accel * T1 * T1 / 2;
-	
-	if(L1 > L_dist / 2) {
-		// triangle profile
-		L1 = L_dist / 2;
-		T1 = T3 = sqrt(2 * L1 / accel);
-		w_max = w_max * (accel * T1) / speed;
-		v_max = v_max * (accel * T1) / speed;
-		T3 = (v_max - v_end) / accel;
-		T2 = 0;
-	} else {
-		// trapezoid profile
-		T2 = (L_dist - 2*L1) / speed;
-	}
-	
-	if (T1 == 0 || T3 == 0) {
-		end_command();
-		return;
-	}
-
 	t = t0 = sys_time;
-	t1 = t0 + T1;
-	t2 = t1 + T2;
-	t3 = t2 + T3;
 	angle_ref = t_ref;
 	dist_ref = d_ref;
-	
-	while(t <= t3) {
+
+	while(t <= trap_t.t3+t0) {
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
 			break;
 		}
-
-		if(t <= t1) {
-			w_ref = w_max * (t-t0)/T1;
-			v_ref = v_max * (t-t0)/T1;
-		} else if(t <= t2) {
-			w_ref = w_max;
-			v_ref = v_max;
-		} else if(T3 > 0 && t <= t3) {
-			w_ref = w_max - (w_max-w_end) * (t-t2)/T3;
-			v_ref = v_max - (v_max-v_end) * (t-t2)/T3;
-		}
 		
-		angle_ref += s * w_ref;
-		dist_ref += sign(Fi) * absd(v_ref);
-		t_ref = angle_ref;
-		d_ref = dist_ref;
+		trapezoid_set_time(&trap_t, t-t0);
+		trapezoid_set_time(&trap_d, t-t0);
+		
+		t_ref = angle_ref + s*direction * trap_t.s;
+		d_ref = dist_ref + direction * trap_d.s;
 		
 		wait_for_regulator();
 	}
