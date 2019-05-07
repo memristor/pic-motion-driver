@@ -9,19 +9,12 @@
 	type f ## 2(type amp, type v) { return f(-amp,amp,v); } \
 	type f ## _margin(type center, type margin, type v) { return f(center-margin,center+margin,v); }
 
-#define def_sign(type, f) type f(type x) { return x >= 0 ? 1 : -1; }
-#define def_min(type, f) type f(type a, type b) { if (a < b) return a; else return b; }
-#define def_max(type, f) type f(type a, type b) { if (a > b) return a; else return b; }
-
 proc_def(def_abs, abs);
 proc_def(def_clip, clip);
-proc_def(def_sign, sign);
-proc_def(def_min, min);
-proc_def(def_max, max);
 
 
 int in_range_long(long val, long a, long b) {
-	return in_range(val, a,b);
+	return in_range(val, a, b);
 }
 
 float dval(char dir, float val) {
@@ -58,7 +51,6 @@ long angle_range_normalize_long(long angle, long angle_period) {
 		angle = angle % angle_period;
 	}
 	
-	// angle ~ [-angle_period/2, angle_period/2]
 	long half = angle_period/2;
 	if(angle > half) {
 		angle -= angle_period;
@@ -72,7 +64,6 @@ float angle_range_normalize_float(float angle, float angle_period) {
 		angle = fmod(angle, angle_period);
 	}
 	
-	// angle ~ [-angle_period/2, angle_period/2]
 	float half = angle_period/2;
 	if(angle > half) {
 		angle -= angle_period;
@@ -81,14 +72,6 @@ float angle_range_normalize_float(float angle, float angle_period) {
 	}
 	return angle;
 }
-
-uint32_t uint32_log10(uint32_t v) {
-    return (v >= 1000000000u) ? 9 : (v >= 100000000u) ? 8 : 
-        (v >= 10000000u) ? 7 : (v >= 1000000u) ? 6 : 
-        (v >= 100000u) ? 5 : (v >= 10000u) ? 4 :
-        (v >= 1000u) ? 3 : (v >= 100u) ? 2 : (v >= 10u) ? 1u : 0u; 
-}
-
 
 int deg_angle_diff(int a, int b) {
 	long d = a - b;
@@ -100,36 +83,18 @@ int deg_angle_diff(int a, int b) {
 	return d;
 }
 
+uint32_t uint32_log10(uint32_t v) {
+    return (v >= 1000000000u) ? 9 : (v >= 100000000u) ? 8 : 
+        (v >= 10000000u) ? 7 : (v >= 1000000u) ? 6 : 
+        (v >= 100000u) ? 5 : (v >= 10000u) ? 4 :
+        (v >= 1000u) ? 3 : (v >= 100u) ? 2 : (v >= 10u) ? 1u : 0u; 
+}
 
 float min3f(float a, float b, float c) {
-	if(a < b) {
-		if(a < c) {
-			return a;
-		} else {
-			return c;
-		}
-	} else {
-		if(b < c) {
-			return b;
-		} else {
-			return c;
-		}
-	}
+	return minf(minf(a,b),c);
 }
 float max3f(float a, float b, float c) {
-	if(a > b) {
-		if(a > c) {
-			return a;
-		} else {
-			return c;
-		}
-	} else {
-		if(b > c) {
-			return b;
-		} else {
-			return c;
-		}
-	}
+	return maxf(maxf(a,b),c);
 }
 
 // trapezoid

@@ -1035,10 +1035,9 @@ void cmd_diff_drive(int x, int y, int Fi, int direction) {
 */
 void cmd_move(long x, long y, int radius, char direction) {
 	move_cmd_next.active = 0;
-	float speed = current_speed;
+	float t, speed = current_speed;
 	float rotation_speed = angular_speed; /* [inc/ms] */
 	float min_speed = c_speed_drop * g_vmax;
-	
 	
 	start_command();
 	report_status(STATUS_MOVING);
@@ -1049,18 +1048,17 @@ void cmd_move(long x, long y, int radius, char direction) {
 	
 	float v_div_w = (float)MM_TO_INC( minf(dist, radius)/2.0f ) / (float)RAD_TO_INC_ANGLE(1);
 	float w_div_v = 1.0f/v_div_w;
-	
-	float w;
-	float v;
+	float w,v;
 
-	long goal_angle;
-	long angle_diff;
+	long goal_angle, angle_diff;
 	goal_angle = RAD_TO_INC_ANGLE(atan2(y-Y, x-X));
 	angle_diff = inc_angle_diff(goal_angle, orientation);
 	
-	if(direction > 0) direction = 1;
-	else if(direction < 0) direction = -1;
-	else {
+	if(direction > 0) {
+		direction = 1;
+	} else if(direction < 0) {
+		direction = -1;
+	} else {
 		// determine direction automatically
 		if(absl(angle_diff) < K1/4) {
 			direction = 1;
@@ -1069,10 +1067,7 @@ void cmd_move(long x, long y, int radius, char direction) {
 		}
 	}
 	
-	long D = d_ref;
-	long R = t_ref;
-	
-	float t;
+	long D = d_ref, R = t_ref;
 	
 	v = g_vmax;
 	w = w_div_v * v;
@@ -1086,45 +1081,49 @@ void cmd_move(long x, long y, int radius, char direction) {
 	}
 	
 	sys_time = 0;
-	unsigned long dt;
-	
-	int slowdown_phase = 0;
-	int maxspeed_phase = 0;
-
+	unsigned long dt;	
+	int slowdown_phase = 0, maxspeed_phase = 0;
 	int xd, yd, lt = sys_time;
+	long orient, abs_angle_diff;
+	float accel, alpha, abs_speed, abs_rotation_speed;
+	char ss,sr;
 	
-	float accel, alpha;
 	xd = X - x;
 	yd = Y - y;
+	
+	
 	while(1) {
 		if(get_command() == ERROR) {
 			break;
 		}
 		
+		min_speed = VMAX * c_end_speed / 255;
 		dt = sys_time - lt;
 		accel = g_accel * dt;
 		alpha = g_alpha * dt;
 		
 		goal_angle = RAD_TO_INC_ANGLE( atan2(y-Y, x-X) );
-		long orient = orientation;
+		orient = orientation;
 		
 		if(direction == -1) {
 			orient = angle_range_normalize_long( orient + DEG_TO_INC_ANGLE( 180 ), K1 );
 		}
 		
+		ss = signf(speed);
+		sr = signf(rotation_speed);
+		
 		angle_diff = inc_angle_diff(goal_angle, orient);
-		long abs_angle_diff = absl(angle_diff);
+		abs_angle_diff = absl(angle_diff);
 		
 		dist = get_distance_to(x,y);
-		
-		char ss = signf(speed), sr = signf(rotation_speed);
-		float abs_speed = absf(speed), abs_rotation_speed = absf(rotation_speed);
+		abs_speed = absf(speed);
+		abs_rotation_speed = absf(rotation_speed);
 		
 		// speed
 		if(ss != direction) {
-			speed -= dval(ss, g_accel);
+			speed -= ss * g_accel;
 			if(speed == 0.0f) {
-				speed += dval(direction, 0.01f);
+				speed += direction * 0.01f;
 			}
 		} else {
 			t = abs_speed/g_accel * c_slowdown;
@@ -1133,6 +1132,7 @@ void cmd_move(long x, long y, int radius, char direction) {
 					slowdown_phase = 1;
 					start_dist = dist;
 					
+					/*
 					// next cmd
 					if(move_cmd_next.active) {
 						v = g_vmax;
@@ -1147,15 +1147,15 @@ void cmd_move(long x, long y, int radius, char direction) {
 						}
 						min_speed = v;
 					}
+					*/
 				}
 
-				speed = dval(ss, maxf(min_speed, abs_speed-accel ));
+				speed = ss * maxf( min_speed, abs_speed-accel );
 				
 				if(dist < 2.0f || ((X - x) * xd + (Y-y) * yd) > 0) {
-					
 					// next cmd
 					if(move_cmd_next.active == 1) {
-						
+						/*
 						// done cmd
 						start_packet('N');
 						end_packet();
@@ -1171,19 +1171,26 @@ void cmd_move(long x, long y, int radius, char direction) {
 						min_speed = c_speed_drop * g_vmax;
 						slowdown_phase = 0;
 						continue;
+						*/
 					} else {
-						d_ref = D;
+						// printf("break 1 %f\n", current_speed);
+						if(c_end_speed == 0) {
+							d_ref = D;
+						}
 						break;
 					}
 				}
 				
 				if(speed <= min_speed || dist < 2.0f) {
 					accel = minf(accel * dist / start_dist, accel);
-					speed = dval(ss, maxf(0.0f, abs_speed - accel));
+					speed = ss * maxf(min_speed, abs_speed + sign(min_speed - abs_speed) * accel);
 					
 					// no more commands, stop
 					if(move_cmd_next.active != 1 && speed == 0.0f) {
-						d_ref = D;
+						if(c_end_speed == 0) {
+							d_ref = D;
+						}
+						// printf("break 2\n");
 						break;
 					}
 				}
@@ -1191,36 +1198,27 @@ void cmd_move(long x, long y, int radius, char direction) {
 				maxspeed_phase = 1;
 				// 0 -> vmax, 25 -> v
 				// vmax-v / 25 + v
-				float virt_max = g_vmax; //((v - g_vmax) * (float)abs_angle_diff / (float)DEG_TO_INC_ANGLE(c_angle_speedup)) + g_vmax;
-				if(abs_speed < virt_max) {
-					speed = dval(ss, minf(abs_speed+accel, virt_max));
-				} else {
-					speed = dval(ss, maxf(abs_speed-accel, virt_max));
-				}
+				float vmax = g_vmax; //((v - g_vmax) * (float)abs_angle_diff / (float)DEG_TO_INC_ANGLE(c_angle_speedup)) + g_vmax;
+				speed = ss * clipf_margin(abs_speed, accel, vmax);
 			} else {
-				
-				if(abs_speed < v) {
-					speed = dval(ss, minf(abs_speed+accel, v));
-				} else if(abs_speed > v) {
-					speed = dval(ss, maxf(v, abs_speed-accel));
-				}
-				
+				// stay inside radius
+				speed = ss * clipf_margin(abs_speed, accel, v);
 			}
 		}
 		
 		// rotation
-		if((char)signl(angle_diff) != sr) {
-			rotation_speed -= dval(sr, alpha);
+		if(signl(angle_diff) != sr) {
+			rotation_speed -= sr * alpha;
 			if(rotation_speed == 0.0f) {
-				rotation_speed += dval(signl(angle_diff), 0.01f);
+				rotation_speed += signl(angle_diff) * 0.01f;
 			}
 		} else {
 			if(abs_angle_diff > DEG_TO_INC_ANGLE(2)) {
 				t = abs_rotation_speed/g_alpha * c_slowdown_angle;
 				if(abs_rotation_speed*t/2.0f > abs_angle_diff) {
-					rotation_speed = dval(sr, maxf( abs_rotation_speed - alpha, 0 ));
+					rotation_speed = sr * maxf( abs_rotation_speed - alpha, 0 );
 				} else {
-					rotation_speed = dval(sr, minf( abs_rotation_speed + alpha, w ));
+					rotation_speed = sr * minf( abs_rotation_speed + alpha, w );
 				}
 			} else {
 				R = orientation + rotation_speed * dt;

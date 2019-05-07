@@ -33,11 +33,7 @@ void config_load_from_stream(int length, uint8_t* stream) {
 		int sign = *stream++;
 		int exponent = *stream++;
 		val = sign ? -val : val;
-		// printf("loading %d: %d %d = %f exp %d\n", key, sign, val, val / powf(10.0f, exponent), exponent);
 		config_set_as_fixed_point(key, val, exponent);
-		
-		// config_get_as_fixed_point(key, &val, &exponent, &sign);
-		// printf("loading %d: %d %d = %f exp %d\n", key, sign, val, val / powf(10.0f, exponent), exponent);
 		stream++;
 		length -= 8;
 	}
@@ -64,7 +60,7 @@ void config_save_to_program_memory() {
 	int8_t* ptr = eeprom_get_ptr();
 	if(ptr) {
 		for(i=0; i < CONFIG_MAX; i++) {
-			config_get_as_stream(i, ptr);
+			config_get_as_stream(i, (uint8_t*)ptr);
 			ptr += 8;
 		}
 		eeprom_save();
@@ -76,11 +72,8 @@ void config_load(void) {
 	if (eeprom_initialized()) {
 		int8_t* ptr = eeprom_get_ptr();
 		eeprom_load();
-		printf("load from eeprom\n");
 		config_load_from_stream(CONFIG_MAX*8, ptr);
-		printf("load from eeprom complete\n");
 	} else {
-		// printf("load defaults\n");
 		config_load_defaults();
 		config_save_to_program_memory();
 	}
