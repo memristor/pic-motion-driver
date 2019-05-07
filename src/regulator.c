@@ -705,7 +705,7 @@ void cmd_speed_const(int a, int b) {
 }
 
 
-// turn to point and move to it (Xd, Yd)
+// simple go to point (Xd, Yd)
 void cmd_goto(int Xd, int Yd, char direction) {
 	start_command();
 	report_status(STATUS_MOVING);
@@ -749,30 +749,30 @@ void cmd_goto(int Xd, int Yd, char direction) {
 	float accel = g_accel;
 	if (accel == 0) return;
 	// calculate phase durations
-	T1 = maxf(0, c_vmax - v0) / accel + 0.5;
+	T1 = maxf(0, c_vmax - v0)/accel + 0.5;
 	L0 = L;
-	L1 = current_speed * T1 + accel * T1 * T1 / 2;
+	L1 = current_speed*T1 + accel * T1*T1/2;
 
-	T3 = maxf(0, c_vmax - v_end) / accel + 0.5;
-	L3 = c_vmax * T3 - accel * T3 * T3 / 2;
+	T3 = maxf(0, c_vmax - v_end)/accel + 0.5;
+	L3 = c_vmax*T3 - accel * T3*T3/2;
 
 	if( (L1 + L3) < L_dist ) {
 		// can reach c_vmax
 		L2 = L_dist - L1 - L3;
 		// T2 = ceil(L2 / c_vmax);
-		T2 = L2 / c_vmax + 0.5;
+		T2 = L2/c_vmax + 0.5;
 		vmax = c_vmax;
 	} else {
 		// can't reach c_vmax
 		T2 = 0;
-		v_peak = sqrt(accel * L_dist + (current_speed * current_speed + v_end * v_end) / 2);
+		v_peak = sqrt(accel*L_dist + (current_speed*current_speed + v_end*v_end)/2);
 		if( (v_peak < current_speed) || (v_peak < v_end) ) {
 			report_status(STATUS_ERROR);
 			return; //mission impossible
 		}
 		vmax = v_peak;
-		T1 = (v_peak - current_speed) / accel + 0.5;
-		T3 = (v_peak - v_end) / accel + 0.5;
+		T1 = (v_peak - current_speed)/accel + 0.5;
+		T3 = (v_peak - v_end)/accel + 0.5;
 	}
 
 	t = t0 = sys_time;
@@ -789,8 +789,8 @@ void cmd_goto(int Xd, int Yd, char direction) {
 	D0 = d_ref;
 	long orig = d_ref;
 	long ref = 0;
-	long ref_max = accel * T1*T1/2 + vmax * T2 + accel * T3 * T3 / 2;
-	long ref_err = (L_dist - ref_max) ;
+	long ref_max = accel*T1*T1/2 + vmax*T2 + accel * T3*T3/2;
+	long ref_err = (L_dist - ref_max);
 	// ref_err = 0;
 	
 	while(t <= t3) {
@@ -798,7 +798,9 @@ void cmd_goto(int Xd, int Yd, char direction) {
 		if(get_command() == ERROR) {
 			break;
 		}
-		if(t <= t2) {// refresh angle reference
+		
+		// refresh angle reference
+		if(t <= t2) {
 			if(direction > 0) {
 				t_ref = RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong));
 			} else {
@@ -806,14 +808,14 @@ void cmd_goto(int Xd, int Yd, char direction) {
 			}
 		}
 		
-		if(t <= t1) {// speeding up phase
-			ref = accel * (t-t0)*(t-t0)/2;
-		} else if(t <= t2) {// constant speed phase
-			ref = (accel * T1*T1/2) + vmax * (t-t1);
-		} else if(t <= t3) {// slowing down phase
-			ref = (accel * T1*T1/2) + vmax * T2 + (vmax * (t-t2) - accel * (t-t2) * (t-t2) / 2);
+		if(t <= t1) { // speeding up phase
+			ref = accel*(t-t0)*(t-t0)/2;
+		} else if(t <= t2) { // constant speed phase
+			ref = (accel*T1*T1/2) + vmax*(t-t1);
+		} else if(t <= t3) { // slowing down phase
+			ref = (accel*T1*T1/2) + vmax*T2 + (vmax*(t-t2) - accel*(t-t2)*(t-t2)/2);
 		}
-		d_ref = orig + direction * (ref + ref_err * (t-t0) / T);
+		d_ref = orig + direction * (ref + ref_err*(t-t0) / T);
 		wait_for_regulator();
 	}
 
@@ -842,13 +844,18 @@ void cmd_forward_lazy(int length, uint8_t speed) {
 	end_command();
 }
 
+
+
+
+
 // move robot forward in direction its facing
 void cmd_forward(int length) {
+	char s,s1;
 	long t, t0, t1, t2, t3;
 	long L_dist, L0, L1, L2, L3;
 	long D0, D1, D2, T1, T2, T3;
 	float v_peak, v_end, v0, v_ref;
-	char s;
+	float accel = g_accel, vmax = c_vmax;
 	
 	start_command();
 	report_status(STATUS_MOVING);
@@ -856,18 +863,17 @@ void cmd_forward(int length) {
 	d_ref = L;
 	v_ref = current_speed;
 	v0 = v_ref;
-	v_end = VMAX * c_end_speed / 256;
-	s = sign(length);
-	float accel = g_accel;
-	float vmax = c_vmax;
+	v_end = VMAX * c_end_speed/256;
 	L_dist = MM_TO_INC(length);
-
-	T1 = maxf(0, vmax - v_ref) / accel;
+	
+	s = sign(length);
+	s1 = sign(vmax - v_ref);
+	T1 = abs(vmax - v_ref)/accel;
 	L0 = L;
-	L1 = v_ref * T1 + accel * T1 * T1 / 2;
-
-	T3 = maxf(0, vmax - v_end) / accel;
-	L3 = vmax * T3 - accel * T3 * T3 / 2;
+	L1 = v_ref * T1 + accel*T1*T1/2;
+	
+	T3 = maxf(0, vmax - v_end)/accel;
+	L3 = vmax * T3 - accel*T3*T3/2;
 	
 	if((L1 + L3) < (long)s * L_dist) {
 		// can reach
@@ -876,13 +882,13 @@ void cmd_forward(int length) {
 	} else {
 		// can't reach vmax
 		T2 = 0;
-		v_peak = sqrt(accel * s * L_dist + (v_ref * v_ref + v_end * v_end) / 2);
+		v_peak = sqrt(s*accel*L_dist + (v_ref*v_ref + v_end*v_end)/2);
 		if( (v_peak < v_ref) || (v_peak < v_end) ) {
 			report_status(STATUS_ERROR);
 			// printf("ERROR\n");
 			return; //mission impossible
 		}
-
+		
 		T1 = (v_peak - v_ref) / accel;
 		T3 = (v_peak - v_end) / accel;
 	}
@@ -894,7 +900,6 @@ void cmd_forward(int length) {
 	D0 = d_ref;
 	// printf("forw times: %d,%d,%d total: %d %f\n", T1,T2,T3, T1+T2+T3, v_ref);
 	while(t < t3) {
-		
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
@@ -902,14 +907,14 @@ void cmd_forward(int length) {
 		}
 		
 		if(t <= t1) {
-			v_ref = v0 + accel * (t-t0);
-			D1 = D2 = d_ref = D0 + (long)s * (v0 * (t-t0) + accel * (t-t0)*(t-t0)/2);
+			v_ref = v0 + accel*(t-t0);
+			D1 = D2 = d_ref = D0 + (long)s * (v0*(t-t0) + s1*accel*(t-t0)*(t-t0)/2);
 		} else if(t <= t2) {
 			v_ref = vmax;
-			D2 = d_ref = D1 + (long)s * vmax * (t-t1);
+			D2 = d_ref = D1 + (long)s*vmax*(t-t1);
 		} else if(t <= t3) {
 			// v_ref = vmax - accel * (t-t2);
-			d_ref = D2 + (long)s * (v_ref * (t-t2) - accel * (t-t2) * (t-t2) / 2);
+			d_ref = D2 + (long)s * (v_ref*(t-t2) - accel*(t-t2)*(t-t2)/2);
 		}
 		wait_for_regulator();
 	}

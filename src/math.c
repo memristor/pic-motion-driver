@@ -132,8 +132,67 @@ float max3f(float a, float b, float c) {
 	}
 }
 
+// trapezoid
+int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, float v3, float accel) {
+	int32_t L1,L2,L3;
+	
+	trap->dist = dist;
+	trap->accel = accel;
+	
+	trap->T1 = abs(v2 - v1)/accel;
+	L1 = v1*trap->T1 + accel*trap->T1*trap->T1/2;
+	trap->T3 = abs(v2 - v3)/accel;
+	L3 = v2*trap->T3 - accel*trap->T3*trap->T3/2;
+	
+	if( (L1 + L3) < dist ) { // trapezoid
+		L2 = dist - L1 - L3;
+		trap->T2 = L2 / v2;
+	} else { // triangle
+		trap->T2 = 0;
+		v2 = sqrt(accel*dist + (v1*v1 + v3*v3));
+		// if( (v2 < v1) || (v2 < v3) ) {
+			// return 0; // mission impossible
+		// }
+		trap->T1 = abs(v2 - v1) / accel;
+		trap->T3 = abs(v2 - v3) / accel;
+	}
+
+	trap->v1 = v1;
+	trap->v2 = v2;
+	trap->v3 = v3;
+	trap->s1 = sign(v2 - v1);
+	trap->s3 = sign(v2 - v3);
+	// trap->t0 = sys_time;
+	trap->t0 = 0;
+	trap->t1 = trap->t0 + trap->T1;
+	trap->t2 = trap->t1 + trap->T2;
+	trap->t3 = trap->t2 + trap->T3;
+	return 1;
+}
+
+float trapezoid_set_time(struct trapezoid* trap, int32_t t) {
+	int32_t dt;
+	if(t <= trap->t1) { // speeding up phase
+		dt = t - trap->t0;
+		trap->v = trap->v1 + (int32_t)trap->s1 * trap->accel * dt;
+		trap->s = trap->v1*dt + (int32_t)trap->s1 * trap->accel*dt*dt/2;
+	} else if(t <= trap->t2) { // constant speed phase
+		dt = t - trap->t1;
+		trap->v = trap->v2;
+		trap->s = (trap->v1*trap->T1 + (int32_t)trap->s1 * trap->accel*trap->T1*trap->T1/2) + trap->v2*dt;
+	} else if(t <= trap->t3) { // slowing down phase
+		dt = t - trap->t2;
+		trap->v = trap->v2 - (int32_t)trap->s3 * trap->accel * dt;
+		trap->s = (trap->v1*trap->T1 + (int32_t)trap->s1 * trap->accel*trap->T1*trap->T1/2) + 
+			trap->v2*trap->T2 + trap->v2*dt +
+			- (int32_t)trap->s3 * trap->accel*dt*dt/2;
+	}
+	return trap->v;
+}
 
 
+
+// filter
 void filter_init(struct filter_t* filter, int8_t len, int16_t *array, int16_t* coef) {
 	int i,sum=0;
 	for(i=0; i < len; i++) {
