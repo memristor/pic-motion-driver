@@ -1,9 +1,9 @@
 #ifndef BOOTLOADER_H
 #define BOOTLOADER_H
-
+#include <stdint.h>
+#include "../packet.h"
 void bootloader_start();
 
-#include <stdint.h>
 #ifndef SIM
 	#define BOOT 
 	// #define BOOT __attribute__((section ("bootloader")))
@@ -14,5 +14,11 @@ void bootloader_start();
 #else
 	#define BOOT
 #endif
+
+	#define EEPROM_SIZE 256*8 // 256 saved configs
+	int eeprom_initialized();
+	void eeprom_load();
+	void eeprom_save();
+	int8_t* eeprom_get_ptr();
 
 #endif

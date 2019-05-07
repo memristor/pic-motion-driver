@@ -1,6 +1,7 @@
 #include "hw.h"
 #include "../bootloader.h"
 
+
 /*
 Available builtin asm substitutes:
 	unsigned int __builtin_tbloffset(const void *p);
@@ -17,10 +18,10 @@ int eeprom_initialized() {
 	return 0;
 }
 void eeprom_save() {
-	
+	// save to file
 }
 void eeprom_load() {
-	
+	// load from file
 }
 int8_t* eeprom_get_ptr() {
 	return 0;
@@ -31,7 +32,7 @@ void BOOT bootloader_start() {
 }
 
 void BOOT bootloader_erase_page(uint32_t adr) {
-	
+
 }
 
 void BOOT bootloader_write_row(uint32_t adr, uint8_t* data, int len) {

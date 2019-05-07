@@ -22,24 +22,6 @@ void hw_init(void) {
 	can_init(CAN_ID, CAN_USE_EXTENDED_ID);
 	uart_init(UART_BAUD);
 	
-	packet_init();
-	printf("pkt initialized\n");
-	
-	config_init();
-	
-	regulator_init();
-	printf("regulator initialized\n");
-	// must come after regulator_init !
-	config_load_defaults();
-	
 	timer_init();
 	encoder_init();
-	printf("encoder initialized\n");
-	
-	reset_driver();
-	printf("driver reset\n");
-	motor_init();
-	set_speed(0x32);
-	
-	printf("initialized\n");
 }

@@ -78,7 +78,7 @@ void can_init(int can_id, int use_eid) {
 		return;
 	}
 	
-	printf("can initialized\n");
+	printf("CAN initialized\n");
 }
 
 

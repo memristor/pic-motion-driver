@@ -4,9 +4,12 @@
 #include <stdint.h>
 #define SINUS_MAX 8192u
 #define SINUS_AMPLITUDE 0x7fff
+
+#define abs whatever
 #include <math.h>
 
 #undef abs
+#define abs my_abs
 #undef min
 #undef max
 
@@ -26,8 +29,8 @@ float dval(char dir, float val);
 float dfval(float dir, float val);
 
 #define proc_def(def, func) 	\
-	def(int, func); 			\
-	def(long, func ## l); 		\
+	def(int16_t, func); 		\
+	def(int32_t, func ## l); 	\
 	def(long long, func ## ll); \
 	def(float, func ## f); 		\
 	def(double, func ## d);		\

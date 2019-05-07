@@ -150,9 +150,9 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 	int32_t L1,L2,L3;
 	dist = absl(dist);
 	trap->dist = dist;
-	trap->T1 = abs(v2 - v1)/accel;
+	trap->T1 = absf(v2 - v1)/accel;
 	L1 = v1*trap->T1 + accel*trap->T1*trap->T1/2;
-	trap->T3 = abs(v2 - v3)/accel;
+	trap->T3 = absf(v2 - v3)/accel;
 	L3 = v2*trap->T3 - accel*trap->T3*trap->T3/2;
 	
 	if( (L1 + L3) < dist ) { // trapezoid
@@ -164,8 +164,8 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 		// if( (v2 < v1) || (v2 < v3) ) {
 			// return 0; // mission impossible
 		// }
-		trap->T1 = abs(v2 - v1) / accel;
-		trap->T3 = abs(v2 - v3) / accel;
+		trap->T1 = absf(v2 - v1) / accel;
+		trap->T3 = absf(v2 - v3) / accel;
 	}
 	
 	trapezoid_init_end(trap, v1, v2, v3, accel);
@@ -177,8 +177,8 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 }
 
 int trapezoid_init_from_time(struct trapezoid* trap, int16_t T, float v1, float v2, float v3, float accel) {
-	trap->T1 = abs(v2-v1)/accel;
-	trap->T3 = abs(v2-v3)/accel;
+	trap->T1 = absf(v2-v1)/accel;
+	trap->T3 = absf(v2-v3)/accel;
 	trap->T2 = T - (trap->T1 + trap->T3);
 	trapezoid_init_end(trap, v1,v2,v3,accel);
 }

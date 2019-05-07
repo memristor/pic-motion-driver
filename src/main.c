@@ -55,7 +55,7 @@ int main(void) {
 				break;
 			
 			case CMD_SET_CONFIG:
-				config_load(pkt->size, pkt->data);
+				config_load_from_stream(pkt->size, pkt->data);
 				break;
 			
 			case CMD_GET_CONFIG: {
@@ -75,11 +75,11 @@ int main(void) {
 			
 			case CMD_SET_CONFIG_HASH: {
 				int hash, exp, key;
+				int32_t val;
 				hash = get_word();
-				int32_t val = get_long();
+				val = get_long();
 				exp = get_byte();
-				key = config_get_key(hash);
-				config_set_as_fixed_point(key, val, exp);
+				config_set_as_fixed_point(config_get_key(hash), val, exp);
 				break;
 			}
 				

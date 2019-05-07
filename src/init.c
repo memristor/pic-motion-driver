@@ -8,7 +8,8 @@ void initialize(void) {
 	regulator_init();
 	
 	// must come after regulator_init !
-	config_load_defaults();
+	config_load();
+	
 	reset_driver();
 	motor_init();
 	set_speed(0x32);

@@ -1,7 +1,5 @@
-#include "config.h"
-#include <stdint.h>
-#include "bootloader.h"
-#include "com/packet.h"
+#include "hw.h"
+#include "../bootloader.h"
 
 /*
 Available builtin asm substitutes:
@@ -15,6 +13,18 @@ Available builtin asm substitutes:
 
 
 // const uint8_t space[512] __attribute__((space(psv), address(0xfc00*3)));
+int eeprom_initialized() {
+	return 0;
+}
+void eeprom_save() {
+	
+}
+void eeprom_load() {
+	
+}
+int8_t* eeprom_get_ptr() {
+	return 0;
+}
 
 void BOOT bootloader_start() {
 	/*

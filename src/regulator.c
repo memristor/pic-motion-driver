@@ -39,7 +39,7 @@ static float g_accel = 0, g_alpha = 0;
 */
 // changes in interrupt, so here are all volatiles
 static volatile ldouble positionL = 0, positionR = 0, Xlong = 0, Ylong = 0;
-static long long encL = 0,encR = 0;
+static long long encL = 0, encR = 0;
 static volatile long X = 0, Y = 0;
 static volatile float current_speed = 0, angular_speed = 0;
 static volatile unsigned long sys_time = 0;
@@ -577,7 +577,7 @@ static char get_command(void)
 				return BREAK;
 				
 			case CMD_SET_CONFIG:
-				config_load(pkt->size, pkt->data);
+				config_load_from_stream(pkt->size, pkt->data);
 				break;
 				
 			case CMD_GET_CONFIG: {

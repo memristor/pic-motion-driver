@@ -28,7 +28,9 @@ extern float config_floats[CONFIG_MAX_FLOATS];
 
 void config_save_to_program_memory();
 
-void config_load(int length, uint8_t* stream); // reads all keys from stream
+// reads all keys from stream
+void config_load_from_stream(int length, uint8_t* stream);
+int config_get_as_stream(int key, uint8_t* stream);
 
 void config_set_as_fixed_point(int key, int32_t value, int exponent);
 int config_get_as_fixed_point(int key, int32_t* value, int *exponent, int *sign);
@@ -46,6 +48,7 @@ static inline float config_get_f(int key) {
 }
 
 void config_init(void);
+void config_load(void);
 uint8_t config_get_key(int16_t hash);
 
 

@@ -1,5 +1,6 @@
 #include "config.h"
-#include <math.h>
+#include "hw/bootloader.h"
+#include "math.h"
 int8_t config_bytes[CONFIG_MAX_BYTES];
 int16_t config_ints[CONFIG_MAX_INTS];
 float config_floats[CONFIG_MAX_FLOATS];
@@ -22,7 +23,7 @@ static uint32_t load_uint32_bigendian(uint8_t* s) {
 	return (((uint32_t)s[0]) << 24) | (((uint32_t)s[1]) << 16) | (((uint32_t)s[2]) << 8) | ((uint32_t)s[3]);
 }
 
-void config_load(int length, uint8_t* stream) {
+void config_load_from_stream(int length, uint8_t* stream) {
 	// key uint32 sign exponent = 7 (max)
 	while(length >= 7) {
 		int key = *stream++;
@@ -31,7 +32,48 @@ void config_load(int length, uint8_t* stream) {
 		int sign = *stream++;
 		int exponent = *stream++;
 		config_set_as_fixed_point(key, sign ? -val : val, exponent);
-		length -= 7;
+		stream++;
+		length -= 8;
+	}
+}
+
+int config_get_as_stream(int key, uint8_t* stream) {
+	int32_t val;
+	uint32_t uval;
+	int exponent, sign;
+	config_get_as_fixed_point(key, &val, &exponent, &sign);
+	uval = absl(val);
+	*stream++ = key;
+	*stream++ = (uval >> 24) & 0xff;
+	*stream++ = (uval >> 16) & 0xff;
+	*stream++ = (uval >> 8) & 0xff;
+	*stream++ = (uval >> 0) & 0xff;
+	*stream++ = sign;
+	*stream++ = exponent;
+}
+
+void config_save_to_program_memory() {
+	int i;
+	uint8_t block[8];
+	int8_t* ptr = eeprom_get_ptr();
+	if(ptr) {
+		for(i=0; i < CONFIG_MAX; i++) {
+			config_get_as_stream(i, ptr);
+			ptr += 8;
+		}
+		eeprom_save();
+	}
+}
+
+void config_load(void) {
+	int i;
+	if (eeprom_initialized()) {
+		int8_t* ptr = eeprom_get_ptr();
+		eeprom_load();
+		config_load_from_stream(CONFIG_MAX*8, ptr);
+	} else {
+		config_load_defaults();
+		config_save_to_program_memory();
 	}
 }
 
@@ -70,7 +112,7 @@ void config_set_as_fixed_point(int key, int32_t value, int exponent) {
 	}
 }
 
-int config_get_as_fixed_point(int key, int32_t* value, int *exponent, int *sign) {
+int config_get_as_fixed_point(int key, int32_t* value, int *exponent, int *sgn) {
 	if(key >= CONFIG_MAX) return 0;
 	
 	float val;
@@ -85,13 +127,12 @@ int config_get_as_fixed_point(int key, int32_t* value, int *exponent, int *sign)
 	int fract_numbers = MAX_EXPONENT_BITS - ( (int)log10(fabsf(val)) + 1 );	
 	float exp = fract_numbers;
 	*value = val * powf(10.0f, exp);
+	*sgn = sign(val);
 	*exponent = fract_numbers;
 	return 1;
 }
 
-void config_save_to_program_memory() {
-	
-}
+
 
 void config_on_change(int key, ConfigCallback callback) {
 	config_callbacks[key] = callback;
