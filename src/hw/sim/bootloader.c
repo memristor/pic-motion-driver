@@ -17,12 +17,14 @@ Available builtin asm substitutes:
 uint8_t eeprom_memory[EEPROM_SIZE];
 char* filename = "eeprom.bin";
 int eeprom_initialized() {
+	return 0;
 	if( access( filename, F_OK ) != -1 ) {
 		return 1;
 	}
 	return 0;
 }
 void eeprom_save() {
+	return;
 	// save to file
 	FILE* file = fopen(filename, "w");
 	fwrite(eeprom_memory, 1, EEPROM_SIZE, file);

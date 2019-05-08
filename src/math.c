@@ -169,7 +169,7 @@ float trapezoid_set_time(struct trapezoid* trap, int32_t t) {
 	if(t < trap->t3) {
 		int32_t ref = trap->ref_err * (t - trap->t0) / (trap->t3 - trap->t0);
 		// trap->v += ref;
-		trap->s += ref;
+		// trap->s += ref;
 	}
 	
 	return trap->v;
