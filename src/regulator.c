@@ -525,12 +525,14 @@ int m1,m2;
 	receive command while moving
 	return - OK (continue command) or BREAK/ERROR (break current command)
 */
-static char get_command(void)
-{		
+static char get_command(void) {
 	if(current_status == STATUS_STUCK) return ERROR;
 	Packet* pkt = try_read_packet();
 	
 	if(pkt != 0) {
+		#ifdef SIM
+		printf("pkt: %c (%x)\n", pkt->type, pkt->type);
+		#endif
 		switch(pkt->type) {           
 			case CMD_SEND_STATUS_AND_POSITION:
 				send_status_and_position();
@@ -552,9 +554,10 @@ static char get_command(void)
 
 				return BREAK;
 			
-			case CMD_SMOOTH_STOP:
+			case CMD_SMOOTH_STOP: {
 				cmd_smooth_stop();
 				return BREAK;
+			}
 				
 			case CMD_SET_CONFIG:
 				config_load_from_stream(pkt->size, pkt->data);
@@ -696,13 +699,19 @@ void cmd_goto(int Xd, int Yd, char direction) {
 	// turn to end point, find angle to turn
 	length = get_distance_to(Xd, Yd);
 	if(length > 2) {
+		char ret =
 		rotate_absolute_angle_inc(
 			RAD_TO_INC_ANGLE(atan2(Ydlong-Ylong, Xdlong-Xlong)) +
 			DEG_TO_INC_ANGLE(direction < 0 ? 180 : 0)
 		);
+		if(ret == ERROR) {
+			block(0);
+			end_command();
+			return;
+		}
 	} else {
 		block(0);
-		report_status(STATUS_IDLE);
+		end_command();
 		return;
 	}
 	block(0);
@@ -718,7 +727,6 @@ void cmd_goto(int Xd, int Yd, char direction) {
 	trapezoid_init(&trap, absl(MM_TO_INC(length)), 0, vmax, VMAX*c_end_speed/256, g_accel);
 	
 	while(t <= trap.t3+t0) {
-		t = sys_time;
 		if(get_command() == ERROR) {
 			break;
 		}
@@ -734,7 +742,7 @@ void cmd_goto(int Xd, int Yd, char direction) {
 		
 		trapezoid_set_time(&trap, t-t0);
 		d_ref = D0 + direction * trap.s;
-		wait_for_regulator();
+		t = wait_for_regulator();
 	}
 	end_command();
 }
@@ -793,8 +801,8 @@ void cmd_absrot(int angle) {
 	rotate_absolute_angle_inc(DEG_TO_INC_ANGLE(angle));
 }
 
-void rotate_absolute_angle_inc(int32_t angle) {
-	turn_inc(inc_angle_diff(angle, orientation));
+char rotate_absolute_angle_inc(int32_t angle) {
+	return turn_inc(inc_angle_diff(angle, orientation));
 }
 
 char cmd_turn(int angle) {
@@ -815,8 +823,6 @@ char turn_inc(int32_t angle) {
 	t = t0 = sys_time;
 	T0 = t_ref;
 	while(t < trap.t3+t0) {
-		t = sys_time;
-		
 		if(get_command() == ERROR) {
 			end_command();
 			return ERROR;
@@ -824,7 +830,7 @@ char turn_inc(int32_t angle) {
 		
 		trapezoid_set_time(&trap, t-t0);
 		t_ref = T0 + s * trap.s;
-		wait_for_regulator();
+		t = wait_for_regulator();
 	}
 	end_command();
 	return OK;
@@ -1236,6 +1242,8 @@ void cmd_smooth_stop(void) {
 	float speed = current_speed;
 	float ang_speed = angular_speed;
 	while(speed != 0.0f || ang_speed != 0.0f) {
+		speed = current_speed;
+		ang_speed = angular_speed;
 		
 		if(absf(speed) > g_accel) {
 			speed -= signf(speed) * g_accel;
@@ -1261,7 +1269,7 @@ void cmd_smooth_stop(void) {
 void cmd_soft_stop(void) {
 	start_command();
 	motor_turn_off();
-	report_status(STATUS_IDLE);
+	end_command();
 }
 
 void set_speed_accel(float v) {

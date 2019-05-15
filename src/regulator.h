@@ -91,7 +91,7 @@ void reset_stuck(void);
 
 // standard commands
 
-void rotate_absolute_angle_inc(int32_t angle);
+char rotate_absolute_angle_inc(int32_t angle);
 char turn_inc(int32_t angle);
 
 void cmd_absrot(int angle);
