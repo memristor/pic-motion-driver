@@ -12,18 +12,26 @@ Available builtin asm substitutes:
 */
 
 
-// const uint8_t space[512] __attribute__((space(psv), address(0xfc00*3)));
+int8_t space[EEPROM_SIZE] __attribute__((space(psv), address(0xa7fe)));
+int8_t eeprom_ram[EEPROM_SIZE];
 int eeprom_initialized() {
-	return 0;
+	return space[EEPROM_SIZE-1];
 }
 void eeprom_save() {
-	
+	int i;
+	for(i=0; i < EEPROM_SIZE; i++) {
+		space[i] = eeprom_ram[i];
+	}
+	space[EEPROM_SIZE-1] = 1;
 }
 void eeprom_load() {
-	
+	int i;
+	for(i=0; i < EEPROM_SIZE; i++) {
+		eeprom_ram[i] = space[i];
+	}
 }
 int8_t* eeprom_get_ptr() {
-	return 0;
+	return eeprom_ram;
 }
 
 void BOOT bootloader_start() {

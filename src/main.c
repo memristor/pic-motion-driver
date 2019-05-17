@@ -18,6 +18,7 @@ int main(void) {
 	char command, v, direction;
 	int radius;
 	
+	
 	// printf("%ld\n", clipl2(7, -2500));
 	// printf("%ld\n", clipl2(7, 2500));
 	#ifdef SIM
@@ -27,13 +28,13 @@ int main(void) {
 	#endif
 	
 	initialize();
-	
+	start_packet('L');
+			 put_byte('L');
+		 end_packet();
 	while(1)
 	{
 	
-		// start_packet('L');
-			// put_byte('L');
-		// end_packet();
+		 
 		#ifdef SIM
 		usleep(1000);
 		#endif

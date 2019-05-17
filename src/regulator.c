@@ -479,7 +479,7 @@ void force_status(enum State newStatus) {
 	report_status(newStatus);
 }
 
-void start_command() {
+static void start_command(void) {
 	motor_init();
 	// cancel keep_moving
 	keep_count = 0;
@@ -487,7 +487,7 @@ void start_command() {
 	//packet_count++;
 }
 
-void end_command() {
+static void end_command() {
 	if (blocked) return;
 	if (c_end_speed > 0) {
 		keep_moving();

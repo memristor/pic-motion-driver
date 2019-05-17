@@ -22,6 +22,7 @@ conf_integers={
 		'stuck_rotation_jump': 180, # in degrees
 		'stuck_distance_max_fail_count': 200,
 		'stuck_rotation_max_fail_count': 200,
+		'send_status_interval': 2000
 	}
 
 conf_bytes={
