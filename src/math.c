@@ -109,6 +109,7 @@ static void trapezoid_init_end(struct trapezoid* trap, float v1, float v2, float
 	trap->t2 = trap->t1 + trap->T2;
 	trap->t3 = trap->t2 + trap->T3;
 	trap->accel = accel;
+
 }
 
 int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, float v3, float accel) {
@@ -138,6 +139,7 @@ int trapezoid_init(struct trapezoid* trap, int32_t dist, float v1, float v2, flo
 			v2*trap->T2 + v2*trap->T3 - (int32_t)trap->s3 * accel*trap->T3*trap->T3/2;
 	trap->ref_err = dist - dist_max;
 	// printf("ref err: %d : (%d %d) : %f %d %d\n", (int)trap->ref_err, (int)dist, (int)dist_max, v2, trap->s1, trap->s3);
+	
 	return 1;
 }
 
@@ -146,6 +148,7 @@ int trapezoid_init_from_time(struct trapezoid* trap, int16_t T, float v1, float 
 	trap->T3 = absf(v2-v3)/accel;
 	trap->T2 = T - (trap->T1 + trap->T3);
 	trapezoid_init_end(trap, v1,v2,v3,accel);
+	trap->ref_err = 0;
 }
 
 float trapezoid_set_time(struct trapezoid* trap, int32_t t) {
@@ -167,9 +170,11 @@ float trapezoid_set_time(struct trapezoid* trap, int32_t t) {
 	}
 	
 	if(t < trap->t3) {
-		int32_t ref = trap->ref_err * (t - trap->t0) / (trap->t3 - trap->t0);
+		float coef=  (float)(t - trap->t0) / (float)(trap->t3 - trap->t0);
+		int32_t ref = trap->ref_err * (float)(t - trap->t0 + 1) / (float)(trap->t3 - trap->t0);
+		// printf("r: %d : %d %f\n", trap->ref_err, ref, coef);
 		// trap->v += ref;
-		// trap->s += ref;
+		trap->s += ref;
 	}
 	
 	return trap->v;
