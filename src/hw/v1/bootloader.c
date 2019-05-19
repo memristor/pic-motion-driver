@@ -16,13 +16,20 @@ int8_t space[EEPROM_SIZE] __attribute__((space(psv), address(0xa7fe)));
 int8_t eeprom_ram[EEPROM_SIZE];
 int eeprom_initialized() {
 	return space[EEPROM_SIZE-1];
+	//return 0;
 }
 void eeprom_save() {
 	int i;
+	
+	uint32_t page = 0xa700;
+	
 	for(i=0; i < EEPROM_SIZE; i++) {
-		space[i] = eeprom_ram[i];
+		if(i % 256 == 0) {
+			bootloader_erase_page(page+i);
+		}
+		//space[i] = eeprom_ram[i];
 	}
-	space[EEPROM_SIZE-1] = 1;
+	//space[EEPROM_SIZE-1] = 1;
 }
 void eeprom_load() {
 	int i;
@@ -32,6 +39,7 @@ void eeprom_load() {
 }
 int8_t* eeprom_get_ptr() {
 	return eeprom_ram;
+	//return 0;
 }
 
 void BOOT bootloader_start() {
