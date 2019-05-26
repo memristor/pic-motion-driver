@@ -14,6 +14,11 @@ void block(int b) {
 	blocked = b;
 }
 
+
+
+
+
+
 // TODO: packet numbering
 int packet_count = 0;
 void reset_packet_count() {
@@ -77,6 +82,22 @@ int16_t filter_speed_coef[5] = {1,1,1,1,1};
 
 float filt_speed = 0;
 float filt_ang_speed = 0;
+
+
+static uint16_t command_hash = 0;
+void begin_command(Packet* pkt) {
+	uint8_t cmd[8];
+	cmd[0] = pkt->type;
+	int i;
+	for(i=0; i < pkt->size; i++) {
+		cmd[1+i] = pkt->data[i];
+	}
+	command_hash = simple_hash(cmd, pkt->size+1);
+	start_packet(MSG_BEGIN_COMMAND);
+		put_word(command_hash);
+		put_byte(current_status);
+	end_packet();
+}
 
 // ============== HELPER FUNCTIONS =============
 
@@ -497,6 +518,7 @@ static void end_command() {
 
 void report_status(int new_status) {
 	if(blocked || current_status == new_status) return;
+	int prev_status = current_status;
 	current_status = new_status;
 	if( c_status_change_report && current_status != last_status ) {
 		start_packet(MSG_STATUS_CHANGED);
@@ -505,6 +527,13 @@ void report_status(int new_status) {
 			put_word(Y);
 			put_word(INC_TO_DEG_ANGLE(orientation));
 		end_packet();
+		
+		start_packet(MSG_STATUS_CHANGED2);
+			put_byte(prev_status);
+			put_byte(current_status);
+			put_word(command_hash);
+		end_packet();
+		
 		last_status = current_status;
 	}
 }

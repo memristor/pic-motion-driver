@@ -38,6 +38,8 @@ messages = {
 	'debug_encoder': '3',
 	'send_status_and_position': 'P',
 	'status_changed': 'p',
+	'status_changed2': 'a',
+	'begin_command': 'b',
 	'encoder1_ready': '!',
 	'encoder2_ready': '@',
 	'debug_distance': 'D',

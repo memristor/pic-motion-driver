@@ -53,6 +53,9 @@ proc_def(def_min_decl, min);
 proc_def(def_max_decl, max);
 */
 
+
+uint16_t simple_hash(uint8_t* v, int len);
+
 #define def_sign(type, f) static inline type f(type x) { return x >= 0 ? 1 : -1; }
 #define def_min(type, f) static inline type f(type a, type b) { if (a < b) return a; else return b; }
 #define def_max(type, f) static inline type f(type a, type b) { if (a > b) return a; else return b; }

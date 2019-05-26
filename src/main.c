@@ -45,6 +45,8 @@ int main(void) {
 		#endif
 		command = pkt->type;
 		reset_stuck();
+		
+		begin_command(pkt);
 		switch(command) {
 			case CMD_SET_POSITION_AND_ORIENTATION:
 				// x [mm], y [mm], orientation

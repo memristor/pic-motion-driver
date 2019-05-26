@@ -25,6 +25,17 @@ float dfval(float dir, float val) {
 	return dir >= 0 ? val : -val;
 }
 
+uint16_t simple_hash(uint8_t* v, int len) {
+	uint16_t h=5381;
+	int i;
+	for(i=0; i < len; i++) {
+		//printf("%x ", v[i]);
+		h = (h*33 + v[i]) & 0xffff;
+	}
+	//printf("\nhash is %d\n", h & 0xffff);
+	return h & 0xffff;
+}
+	
 
 int deg_angle_range_normalize(int angle) {
 	while(angle > 180) {

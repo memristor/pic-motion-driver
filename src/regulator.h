@@ -1,7 +1,7 @@
 #ifndef REGULATOR_H
 #define	REGULATOR_H
 #include <stdint.h>
-
+#include "packet.h"
 
 #define PI	3.1415926535897932384626433832795
 
@@ -75,6 +75,7 @@
 
 
 // ----------------------------------------------------------------------------
+void begin_command(Packet* pkt);
 
 enum State
 {
