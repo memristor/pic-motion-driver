@@ -111,7 +111,7 @@ int8_t eeprom_ram[EEPROM_SIZE+1];
 
 int eeprom_initialized() {
 	eeprom_load();
-	uint32_t *p = (uint32_t*)(eeprom_get_ptr());
+	uint32_t *p = (uint32_t*)(eeprom_get_ptr()+EEPROM_SIZE-4);
 	start_packet('H');
 		put_long(*p);
 	end_packet();
@@ -124,7 +124,7 @@ void eeprom_save() {
 		initialized=1;
 	}
 	int32_t i;
-	uint32_t *p1 = (uint32_t*)(eeprom_get_ptr());
+	uint32_t *p1 = (uint32_t*)(eeprom_get_ptr()+EEPROM_SIZE-4);
 	*p1 = 0xffffffff;
 	
 	for(i=0; i < EEPROM_SIZE/4; i++) {
@@ -132,7 +132,7 @@ void eeprom_save() {
 		data_EEPROM_write(i*4, *(p+i));
 	}
 	eeprom_load();
-	uint32_t *p = (uint32_t*)(eeprom_get_ptr());
+	uint32_t *p = (uint32_t*)(eeprom_get_ptr()+EEPROM_SIZE-4);
 	start_packet('J');
 		put_long(*p);
 	end_packet();
@@ -150,7 +150,7 @@ void eeprom_load() {
 		//*p = data_EEPROM_read(i);
 		*(p+i) = data_EEPROM_read(i*4);
 	}
-	uint32_t *p = (uint32_t*)(eeprom_get_ptr());
+	uint32_t *p = (uint32_t*)(eeprom_get_ptr()+EEPROM_SIZE-4);
 	start_packet('F');
 		put_long(*p);
 	end_packet();

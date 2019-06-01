@@ -57,55 +57,6 @@ int main(void) {
 				set_position(x, y, angle);
 				break;
 			
-			case CMD_SET_CONFIG:
-				config_load_from_stream(pkt->size, pkt->data);
-				break;
-			
-			case CMD_GET_CONFIG: {
-				int key = get_byte();
-				uint32_t val;
-				int exponent;
-				int sign;
-				config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
-				start_packet(CMD_GET_CONFIG);
-					put_word(val >> 16);
-					put_word(val);
-					put_byte(sign);
-					put_byte(exponent);
-				end_packet();
-				break;
-			}
-			
-			case CMD_SET_CONFIG_HASH: {
-				int hash, exp, key;
-				int32_t val;
-				hash = get_word();
-				val = get_long();
-				exp = get_byte();
-				config_set_as_fixed_point(config_get_key(hash), val, exp);
-				break;
-			}
-				
-			case CMD_GET_CONFIG_HASH: {
-				uint32_t val;
-				int exponent, sign, hash, key;
-				hash = get_word();
-				key = config_get_key(hash);
-				config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
-				
-				start_packet(CMD_GET_CONFIG);
-					put_word(val >> 16);
-					put_word(val);
-					put_byte(sign);
-					put_byte(exponent);
-				end_packet();
-				break;
-			}
-			
-			case CMD_SAVE_CONFIG: {
-				config_save_to_program_memory();
-				break;
-			}
 			
 			case CMD_SEND_STATUS_AND_POSITION:
 				// read status and position
@@ -318,7 +269,9 @@ int main(void) {
 			*/
 
 			default:
-				report_status(STATUS_ERROR);
+				if (!config_process_packet(pkt)) {
+					report_status(STATUS_ERROR);
+				}
 		}		
 	}
 

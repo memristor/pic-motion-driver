@@ -4,6 +4,7 @@ commands = {
 	'set_config_hash':'h',
 	'get_config_hash':'H',
 	'save_config': ':',
+	'load_config': ';',
 	'send_status_and_position': 'P',
 	'unstuck': 'U',
 	'motor': 'm',

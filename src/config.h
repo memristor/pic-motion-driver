@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 #include <stdint.h>
-
+#include "packet.h"
 void config_load_hash_map(int16_t* hash);
 void config_set_b(int key, int8_t value);
 void config_set_i(int key, int value);
@@ -54,5 +54,9 @@ uint8_t config_get_key(int16_t hash);
 
 typedef void (*ConfigCallback)(void);
 void config_on_change(int key, ConfigCallback callback);
+
+int config_process_packet(Packet* pkt);
+
+void config_load_from_memory();
 
 #endif

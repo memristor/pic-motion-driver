@@ -517,6 +517,7 @@ static void start_command(void) {
 	keep_count = 0;
 	if (blocked) return;
 	//packet_count++;
+	report_status(STATUS_IDLE);
 }
 
 static void end_command() {

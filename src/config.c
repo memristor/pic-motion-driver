@@ -39,6 +39,70 @@ void config_load_from_stream(int length, uint8_t* stream) {
 	}
 }
 
+
+int config_process_packet(Packet* pkt) {
+	switch(pkt->type) {
+		case CMD_SET_CONFIG:
+			config_load_from_stream(pkt->size, pkt->data);
+			break;
+		
+		case CMD_GET_CONFIG: {
+			int key = get_byte();
+			uint32_t val;
+			int exponent;
+			int sign;
+			config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
+			start_packet(CMD_GET_CONFIG);
+				put_word(val >> 16);
+				put_word(val);
+				put_byte(sign);
+				put_byte(exponent);
+			end_packet();
+			break;
+		}
+		
+		case CMD_SET_CONFIG_HASH: {
+			int hash, exp, key;
+			int32_t val;
+			hash = get_word();
+			val = get_long();
+			exp = get_byte();
+			config_set_as_fixed_point(config_get_key(hash), val, exp);
+			break;
+		}
+			
+		case CMD_GET_CONFIG_HASH: {
+			uint32_t val;
+			int exponent, sign, hash, key;
+			hash = get_word();
+			key = config_get_key(hash);
+			config_get_as_fixed_point(key, (int32_t*)&val, &exponent, &sign);
+			
+			start_packet(CMD_GET_CONFIG);
+				put_word(val >> 16);
+				put_word(val);
+				put_byte(sign);
+				put_byte(exponent);
+			end_packet();
+			break;
+		}
+		
+		case CMD_SAVE_CONFIG: {
+			config_save_to_program_memory();
+			break;
+		}
+		
+		case CMD_LOAD_CONFIG: {
+			config_load_defaults();
+			break;
+		}
+		
+		default:
+			return 0;
+	}
+	return 1;
+}
+
 int config_get_as_stream(int key, uint8_t* stream) {
 	int32_t val;
 	uint32_t uval;
@@ -67,12 +131,17 @@ void config_save_to_program_memory() {
 	}
 }
 
+
+void config_load_from_memory() {
+	int8_t* ptr = eeprom_get_ptr();
+	eeprom_load();
+	config_load_from_stream(CONFIG_MAX*8, ptr);
+}
+
 void config_load(void) {
 	int i;
 	if (eeprom_initialized()) {
-		int8_t* ptr = eeprom_get_ptr();
-		eeprom_load();
-		config_load_from_stream(CONFIG_MAX*8, ptr);
+		config_load_from_memory();
 	} else {
 		config_load_defaults();
 		config_save_to_program_memory();
