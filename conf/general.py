@@ -28,7 +28,9 @@ commands = {
 	'forward_lazy': 'd',
 	'set_position_and_orientation': 'I',
 	'break': 'i',
-	'linear_optocoupler': '-'
+	'linear_optocoupler': '-',
+	'reset': '_',
+	'L_resp': 'l'
 	
 }
 

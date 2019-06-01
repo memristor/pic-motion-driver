@@ -15,7 +15,11 @@ void block(int b) {
 }
 
 
+int L_resp = 1;
 
+void L_resp_set() {
+	L_resp = 0;
+}
 
 
 
@@ -359,10 +363,17 @@ void regulator_interrupt(void) {
 	}
 	
 	// periodically send status
-	RUN_EACH_NTH_CYCLES(int16_t, c_send_status_interval, send_status_and_position());
+	RUN_EACH_NTH_CYCLES(int16_t, c_send_status_interval, {
+		if (L_resp) {
+				start_packet('L');
+					put_byte('L');
+				end_packet();
+			}
+		send_status_and_position();});
 
 	if(c_debug_encoders) {
 		RUN_EACH_NTH_CYCLES(int, 50, {
+
 			start_packet(MSG_DEBUG_ENCODER1);
 				put_long(positionL);
 				put_byte(vL);
@@ -753,7 +764,7 @@ void cmd_goto(int Xd, int Yd, char direction) {
 	D0 = d_ref;
 	
 	struct trapezoid trap;
-	trapezoid_init(&trap, absl(MM_TO_INC(length)), 0, vmax, VMAX*c_end_speed/256, g_accel);
+	trapezoid_init(&trap, absl(MM_TO_INC(length)), filt_speed*direction, vmax, VMAX*c_end_speed/256, g_accel);
 	
 	while(t <= trap.t3+t0) {
 		if(get_command() == ERROR) {
@@ -844,7 +855,7 @@ char turn_inc(int32_t angle) {
 
 	start_command();
 	report_status(STATUS_ROTATING);
-	s = sign(angle);
+	s = signl(angle);
 	
 	struct trapezoid trap;
 	trapezoid_init(&trap, absl(angle), filt_ang_speed*s, g_omega, block==0 ? VMAX*c_end_speed/256 : 0, g_alpha);

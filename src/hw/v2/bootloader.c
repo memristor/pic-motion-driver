@@ -7,6 +7,10 @@
 #define EEKEY1 0xEDB7
 #define EEKEY2 0x1248
 
+
+
+				
+				
 void EEInitialize(void) // Basic EEPROM enable and initialization
 { 
     __builtin_disable_interrupts();
@@ -154,6 +158,12 @@ void eeprom_load() {
 
 int8_t* eeprom_get_ptr() {
 	return eeprom_ram;
+}
+
+
+void sw_reset() {
+	RSWRSTbits.SWRST = 1;
+	RSWRSTbits.SWRST;
 }
 
 void BOOT bootloader_start() {

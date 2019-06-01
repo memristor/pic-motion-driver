@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "../packet.h"
 void bootloader_start();
-
+void sw_reset();
 #ifndef SIM
 	#define BOOT 
 	// #define BOOT __attribute__((section ("bootloader")))

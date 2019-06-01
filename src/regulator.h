@@ -125,5 +125,8 @@ void force_status(enum State);
 
 void reset_packet_count();
 void regulator_interrupt();
+
+void L_resp_set();
+
 #endif	/* REGULACIJA_H */
 
