@@ -12,6 +12,8 @@ Available builtin asm substitutes:
 	void __builtin_tblwtl(unsigned int offset, unsigned int data);
 */
 
+void sw_reset() {
+}
 
 // const uint8_t space[512] __attribute__((space(psv), address(0xfc00*3)));
 uint8_t eeprom_memory[EEPROM_SIZE];

@@ -6,6 +6,7 @@
 #include "packet.h"
 #include "regulator.h"
 #include "math.h"
+#include "hw/bootloader.h"
 
 #undef dbg
 #define dbg(...)
@@ -653,10 +654,12 @@ static char get_command(void) {
 				printf("pkt: i (break)\n");
 				keep_moving();
 				return BREAK;
-			
+				
 			default:
 				// received unknown packet, ignore
-				return OK;
+				if (!config_process_packet(pkt)) {
+					return OK;
+				}
 		}
 	}
 
@@ -859,14 +862,14 @@ char turn_inc(int32_t angle) {
 	s = signl(angle);
 	
 	struct trapezoid trap;
-	trapezoid_init(&trap, absl(angle), filt_ang_speed*s, g_omega, block==0 ? VMAX*c_end_speed/256 : 0, g_alpha);
+	//trapezoid_init(&trap, absl(angle), filt_ang_speed*s, g_omega, block==0 ? VMAX*c_end_speed/256 : 0, g_alpha);
+	trapezoid_init(&trap, absl(angle), angular_speed*s, g_omega, block==0 ? VMAX*c_end_speed/256 : 0, g_alpha);
 	
 	t = t0 = sys_time;
 	T0 = t_ref;
 	while(t < trap.t3+t0) {
 		if(get_command() == ERROR) {
-			end_command();
-			return ERROR;
+			break;
 		}
 		
 		trapezoid_set_time(&trap, t-t0);
@@ -896,7 +899,85 @@ void cmd_curve(long Xc, long Yc, int Fi, char direction) {
 	cmd_curve_rel(R*s*direction, Fi*s*direction);
 }
 
+void arc_relative(int R, int Fi) {
+	float dist_ref, angle_ref, w_ref = 0, v_ref = 0;
+	uint32_t t, t0, t1, t2, t3;
+	int32_t T1, T2, T3;
+	int8_t s;
+
+	start_command();
+	report_status(STATUS_MOVING);
+	
+	s = sign(R) * sign(Fi);
+	R = abs(R);
+	float w_max, v_max, speed, accel;
+	int32_t L_dist;
+	if (R > wheel_distance) {
+		speed = c_vmax;
+		accel = g_accel;
+		w_max = speed * wheel_distance / R;
+		v_max = speed;
+		L_dist = absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R));
+	} else {
+		speed = c_omega;
+		accel = g_alpha;
+		w_max = speed;
+		v_max = speed * R / wheel_distance;
+		L_dist = absl( DEG_TO_INC_ANGLE(Fi) );
+	}
+	
+	T1 = T3 = speed / accel;
+	int32_t L1 = accel * T1 * T1 / 2;
+	
+	if(L1 > L_dist / 2) {
+		// triangle profile
+		L1 = L_dist / 2;
+		T1 = T3 = sqrt(2 * L1 / accel);
+		T2 = 0;
+		w_max = w_max * (accel * T1) / speed;
+		v_max = v_max * (accel * T1) / speed;
+	} else {
+		// trapezoid profile
+		T2 = (L_dist - 2*L1) / speed;
+	}
+
+	t = t0 = sys_time;
+	t1 = t0 + T1;
+	t2 = t1 + T2;
+	t3 = t2 + T3;
+	angle_ref = t_ref;
+	dist_ref = d_ref;
+	
+	while(t <= t3) {
+		wait_for_regulator();
+		t = sys_time;
+		
+		if(get_command() == ERROR) {
+			break;
+		}
+
+		if(t <= t1) {
+			w_ref = w_max * (t-t0)/T1;
+			v_ref = v_max * (t-t0)/T1;
+		} else if(t <= t2) {
+			w_ref = w_max;
+			v_ref = v_max;
+		} else if(t <= t3) {
+			w_ref = w_max - w_max * (t-t2)/T3;
+			v_ref = v_max - v_max * (t-t2)/T3;
+		}
+		
+		angle_ref += s * w_ref;
+		dist_ref += sign(Fi) * absd(v_ref);
+		t_ref = angle_ref;
+		d_ref = dist_ref;
+	}
+	report_status(STATUS_IDLE);
+}
+
 void cmd_curve_rel(int R, int Fi) {
+	//arc_relative(R,Fi);
+	//return;
 	double dist_ref, angle_ref;
 	float w_max, v_max, accel, alpha;
 	uint32_t t, t0;
@@ -907,9 +988,9 @@ void cmd_curve_rel(int R, int Fi) {
 	
 	s = sign(R);
 	direction =  sign(Fi);
-	R = abs(R)/2;
+	R = abs(R);
 	
-	struct trapezoid trap_t, trap_d;
+	struct trapezoid trap;
 	
 	// printf("case: %d\n", !(R > wheel_distance));
 	if (R > wheel_distance) {
@@ -917,15 +998,15 @@ void cmd_curve_rel(int R, int Fi) {
 		alpha = accel * wheel_distance / R;
 		w_max = g_vmax * wheel_distance / R;
 		v_max = g_vmax;
-		trapezoid_init(&trap_d, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), filt_speed*direction, v_max, VMAX*c_end_speed/256, accel);
-		trapezoid_init_from_time(&trap_t, trap_d.t3, filt_ang_speed*direction*s, w_max, VMAX*c_end_speed/256, alpha);
+		trapezoid_init(&trap, absl(DEG_TO_RAD_ANGLE(Fi)*MM_TO_INC(R)), filt_speed*direction, v_max, VMAX*c_end_speed/256, accel);
+		//trapezoid_init_from_time(&trap_t, trap_d.t3, filt_ang_speed*direction*s, w_max, VMAX*c_end_speed/256, alpha);
 	} else {
 		alpha = g_alpha;
 		accel = alpha * R / wheel_distance;
 		w_max = g_omega;
 		v_max = g_omega * R / wheel_distance;
-		trapezoid_init(&trap_t, absl(DEG_TO_INC_ANGLE(Fi)), filt_ang_speed*direction*s, w_max, VMAX*c_end_speed/256, alpha);
-		trapezoid_init_from_time(&trap_d, trap_t.t3, filt_speed*direction, v_max, VMAX*c_end_speed/256, accel);
+		trapezoid_init(&trap, absl(DEG_TO_INC_ANGLE(Fi)), filt_ang_speed*direction*s, w_max, VMAX*c_end_speed/256, alpha);
+		//trapezoid_init_from_time(&trap_d, trap_t.t3, filt_speed*direction, v_max, VMAX*c_end_speed/256, accel);
 	}
 	// printf("speeds: d:%f t:%f .. d:%f t:%f => %f\n", filt_speed, filt_ang_speed, v_max, w_max, VMAX*c_end_speed/256);
 	
@@ -933,20 +1014,19 @@ void cmd_curve_rel(int R, int Fi) {
 	angle_ref = t_ref;
 	dist_ref = d_ref;
 
-	int T = max(trap_d.t3, trap_t.t3);
 	// printf("traps d:%d t:%d\n", trap_d.t3, trap_t.t3);
-	while(t <= T+t0) {
+	while(t <= trap.t3+t0) {
 		t = sys_time;
 		
 		if(get_command() == ERROR) {
 			break;
 		}
 		
-		trapezoid_set_time(&trap_t, t-t0);
-		trapezoid_set_time(&trap_d, t-t0);
+		trapezoid_set_time(&trap, t-t0);
+		//trapezoid_set_time(&trap_d, t-t0);
 		
-		t_ref = angle_ref + s*direction * trap_t.s;
-		d_ref = dist_ref + direction * trap_d.s;
+		t_ref = angle_ref + s*direction * trap.s * (R > wheel_distance ? wheel_distance/R : 1);
+		d_ref = dist_ref + direction * trap.s * (R > wheel_distance ? 1 : R/wheel_distance);
 		
 		wait_for_regulator();
 	}
@@ -1283,8 +1363,6 @@ void cmd_smooth_stop(void) {
 	float speed = current_speed;
 	float ang_speed = angular_speed;
 	while(speed != 0.0f || ang_speed != 0.0f) {
-		speed = current_speed;
-		ang_speed = angular_speed;
 		
 		if(absf(speed) > g_accel) {
 			speed -= signf(speed) * g_accel;

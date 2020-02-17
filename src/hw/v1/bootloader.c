@@ -10,7 +10,8 @@ Available builtin asm substitutes:
 	void __builtin_tblwth(unsigned int offset, unsigned int data);
 	void __builtin_tblwtl(unsigned int offset, unsigned int data);
 */
-
+void sw_reset() {
+}
 
 int8_t space[EEPROM_SIZE] __attribute__((space(psv), address(0xa7fe)));
 int8_t eeprom_ram[EEPROM_SIZE];

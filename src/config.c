@@ -1,6 +1,7 @@
 #include "config.h"
 #include "hw/bootloader.h"
 #include "math.h"
+#include "regulator.h"
 int8_t config_bytes[CONFIG_MAX_BYTES];
 int16_t config_ints[CONFIG_MAX_INTS];
 float config_floats[CONFIG_MAX_FLOATS];
@@ -96,6 +97,16 @@ int config_process_packet(Packet* pkt) {
 			config_load_defaults();
 			break;
 		}
+		
+		case CMD_L_RESP:
+			L_resp_set();
+			break;
+			
+		case CMD_RESET: {
+			sw_reset();
+			break;
+		}
+		
 		
 		default:
 			return 0;

@@ -63,7 +63,7 @@ ifeq ($(ucv),V2)
 	TOOLCHAIN_PATH := /opt/microchip/xc32/v2.15/bin/
 	TOOLCHAIN := $(TOOLCHAIN_PATH)xc32-
 	chip=32MK1024MCF064
-	harmony=/home/nikola/microchip/harmony/v2_06/
+	harmony=~/microchip/harmony/v2_06/
 	flags := $(flags)  -mprocessor=$(chip)  	-L$(harmony)/bin/framework/peripheral/ -l:PIC$(chip)_peripherals.a
 	flags2 := -mprocessor=$(chip) -I$(harmony)/framework/peripheral -I$(harmony)/framework/ -O1
 	src := $(src_v2)

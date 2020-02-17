@@ -185,7 +185,7 @@ float trapezoid_set_time(struct trapezoid* trap, int32_t t) {
 		int32_t ref = trap->ref_err * (float)(t - trap->t0 + 1) / (float)(trap->t3 - trap->t0);
 		// printf("r: %d : %d %f\n", trap->ref_err, ref, coef);
 		// trap->v += ref;
-		trap->s += ref;
+		//trap->s += ref;
 	}
 	
 	return trap->v;

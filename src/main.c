@@ -1,7 +1,7 @@
 #include "config.h"
 #include "init.h"
 #include "hw/motor.h"
-
+#include "hw/bootloader.h"
 #include "packet.h"
 #include "regulator.h"
 
@@ -29,7 +29,9 @@ int main(void) {
 	
 	initialize();
 	
-	
+	start_packet('L');
+		put_byte('L');
+	end_packet();
 	//set_position(9999, 9999, 99);
 	 
 	while(1)
@@ -162,18 +164,8 @@ int main(void) {
 				reset_stuck();
 				break;
 				
-			case CMD_RESET:
-				{
-				//int a = 5;
-				//a-=5;
-				//int b = 5;
-				//a = b/a;
-				sw_reset();
-				break;
-				}
-			case CMD_L_RESP:
-				L_resp_set();
-				break;
+			
+			
 				
 			case 'E':
 				start_packet('E');
